@@ -1,0 +1,10 @@
+{
+  "description": "Provides seniors with a warm daily greeting, emotional support, and easy voice interactions through a high-contrast, accessible interface.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
