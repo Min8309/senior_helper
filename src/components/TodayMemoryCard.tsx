@@ -108,6 +108,7 @@ export function TodayMemoryCard({ childType, onViewMemories }: TodayMemoryCardPr
       date_label: dateLabel,
       title,
       question: currentQuestion,
+      input_type: spokenText.trim() ? "voice" : "text",
       original_text: textToSave,
       summary: textToSave.endsWith("요.") || textToSave.endsWith("다.") ? textToSave : `${textToSave}했어요.`,
       character_mode: childType,
