@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import boyVideo from "../img/01.mp4";
 import girlVideo from "../img/02.mp4";
+import { AiAskCard } from "./components/AiAskCard";
+import { TodayMemoryCard } from "./components/TodayMemoryCard";
+import { MemoryScreen } from "./components/MemoryScreen";
 
 // ─── Shared icons ─────────────────────────────────────────────────────────────
 
@@ -180,10 +183,20 @@ function StepCard({ number, children, accent }: { number: number; children: Reac
 // ─── SCREEN 1: Greeting (Senior Warm & Accessible UI) ─────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 
-function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () => void }) {
+function GreetingScreen({
+  onGuide,
+  onGame,
+  onMemory,
+}: {
+  onGuide: () => void;
+  onGame: () => void;
+  onMemory: () => void;
+}) {
   const [childType, setChildType] = useState<"boy" | "girl">("boy");
   const [playKey, setPlayKey] = useState(0);
   const [ttsPlaying, setTtsPlaying] = useState(false);
+  const [isVideoMuted, setIsVideoMuted] = useState(true);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   // 손자 / 손녀 음성 낭독 (상단 스피커 아이콘 탭 시)
   const handleSpeakGreeting = useCallback(() => {
@@ -212,18 +225,27 @@ function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () =
     }
   }, [childType, ttsPlaying]);
 
-  const restartAnimation = () => {
+  // 비디오 터치 시 소리 켜기 및 다시 재생
+  const handleVideoTouch = () => {
+    setIsVideoMuted(prev => {
+      const next = !prev;
+      if (videoRef.current) {
+        videoRef.current.muted = next;
+        videoRef.current.play().catch(() => {});
+      }
+      return next;
+    });
     setPlayKey(prev => prev + 1);
   };
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "#FFFDF7", overflow: "hidden" }}>
       {/* ── Scrollable Body Area ── */}
-      <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", paddingBottom: 16 }}>
+      <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", paddingBottom: 24, gap: 16 }}>
         
         {/* ── 1. HEADER (시간 & 음성 스피커 & 큰 아침 인사) ── */}
-        <header style={{ padding: "18px 20px 10px", flexShrink: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <header style={{ padding: "18px 20px 0", flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
             <span style={{ fontSize: 19, fontWeight: 700, color: "#626A6E" }}>
               오전 8:30
             </span>
@@ -257,7 +279,7 @@ function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () =
         </header>
 
         {/* ── 2. 오늘 날짜 & 날씨 건강 정보 카드 ── */}
-        <div style={{ padding: "0 20px", marginTop: 4, flexShrink: 0 }}>
+        <div style={{ padding: "0 20px", flexShrink: 0 }}>
           <div style={{
             background: "#FFF9ED",
             border: "2px solid #EEDBB2",
@@ -283,7 +305,7 @@ function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () =
         </div>
 
         {/* ── 3. 손자 / 손녀 선택 UI (Segmented Control) ── */}
-        <div style={{ padding: "14px 20px 0", display: "flex", gap: 12, flexShrink: 0 }}>
+        <div style={{ padding: "0 20px", display: "flex", gap: 12, flexShrink: 0 }}>
           <button
             onClick={() => setChildType("boy")}
             aria-label="손자와 함께 선택"
@@ -336,21 +358,22 @@ function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () =
         </div>
 
         {/* ── 4. AI 캐릭터 영상 (01.mp4 / 02.mp4) & 말풍선 ── */}
-        <div style={{ padding: "14px 20px 0", flexShrink: 0 }}>
+        <div style={{ padding: "0 20px", flexShrink: 0 }}>
           <div style={{
             background: "#FFF9ED",
             border: "2px solid #D9DEDA",
             borderRadius: 24,
-            padding: "16px 16px 16px",
+            padding: "16px",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
             boxShadow: "0 4px 16px rgba(30,50,40,0.06)",
+            position: "relative",
           }}>
             {/* 캐릭터 영상 플레이 영역 (01.mp4 / 02.mp4 재생) */}
             <div
-              onClick={restartAnimation}
-              title="터치하시면 영상을 다시 재생합니다"
+              onClick={handleVideoTouch}
+              title="터치하시면 영상 소리를 켜거나 다시 재생합니다"
               style={{
                 width: "100%",
                 height: 200,
@@ -361,14 +384,16 @@ function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () =
                 borderRadius: 18,
                 overflow: "hidden",
                 background: "transparent",
+                position: "relative",
               }}
             >
               <video
+                ref={videoRef}
                 key={`${childType}-${playKey}`}
                 src={childType === "boy" ? boyVideo : girlVideo}
                 autoPlay
                 playsInline
-                muted
+                muted={isVideoMuted}
                 loop
                 style={{
                   maxHeight: "100%",
@@ -377,6 +402,25 @@ function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () =
                   borderRadius: 18,
                 }}
               />
+              {/* 소리 상태 뱃지 */}
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: 8,
+                  right: 8,
+                  background: "rgba(0,0,0,0.6)",
+                  color: "#FFFFFF",
+                  padding: "4px 8px",
+                  borderRadius: 12,
+                  fontSize: 12,
+                  fontWeight: 800,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+              >
+                <span>{isVideoMuted ? "🔇 터치하여 소리 켜기" : "🔊 소리 켜짐"}</span>
+              </div>
             </div>
 
             {/* 어르신을 위한 친근한 말풍선 */}
@@ -388,7 +432,6 @@ function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () =
               padding: "12px 16px",
               marginTop: 12,
               boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
-              position: "relative",
             }}>
               <p style={{ fontSize: 18, fontWeight: 800, color: "#252A2D", lineHeight: 1.45, margin: 0, textAlign: "center", wordBreak: "keep-all" }}>
                 {childType === "boy"
@@ -399,10 +442,8 @@ function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () =
           </div>
         </div>
 
-        {/* ── 5. 핵심 주요 기능 버튼 2개 (가장 중요한 대형 CTA) ── */}
-        <div style={{ padding: "16px 20px 0", display: "flex", flexDirection: "column", gap: 12, flexShrink: 0 }}>
-          
-          {/* 버튼 1: 오늘의 두뇌 운동 (Primary Green) */}
+        {/* ── 5. 오늘의 두뇌 운동 (우선순위 3: Primary Green 대형 CTA) ── */}
+        <div style={{ padding: "0 20px", flexShrink: 0 }}>
           <button
             onClick={onGame}
             aria-label="오늘의 두뇌 운동 시작하기"
@@ -432,47 +473,21 @@ function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () =
             </div>
             <span style={{ fontSize: 24, color: "#FFFFFF", fontWeight: 900 }}>▶</span>
           </button>
+        </div>
 
-          {/* 버튼 2: 사진 찍고 사용법 물어보기 (Primary Light) */}
-          <button
-            onClick={onGuide}
-            aria-label="사진 찍고 사용법 물어보기"
-            style={{
-              width: "100%",
-              minHeight: 82,
-              borderRadius: 20,
-              background: "#E7F4EC",
-              border: "2.5px solid #26734D",
-              padding: "14px 18px",
-              display: "flex",
-              alignItems: "center",
-              gap: 14,
-              cursor: "pointer",
-              boxShadow: "0 4px 14px rgba(38,115,77,0.12)",
-              textAlign: "left",
-            }}
-          >
-            <span style={{ fontSize: 32, flexShrink: 0 }}>📷</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 20, fontWeight: 900, color: "#1F5D40", lineHeight: 1.25 }}>
-                사진 찍고 사용법 물어보기
-              </div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "#26734D", marginTop: 3 }}>
-                리모컨 · 세탁기 · 전자레인지 등
-              </div>
-              <div style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#FFFFFF", padding: "2px 8px", borderRadius: 8, marginTop: 4 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "#26734D" }}>
-                  🔊 음성으로 알려드려요
-                </span>
-              </div>
-            </div>
-            <span style={{ fontSize: 22, color: "#1F5D40", fontWeight: 900 }}>▶</span>
-          </button>
+        {/* ── 6. AI 손자·손녀에게 물어보기 (우선순위 4: 신규 대화 기능) ── */}
+        <div style={{ padding: "0 20px", flexShrink: 0 }}>
+          <AiAskCard childType={childType} onOpenGuide={onGuide} />
+        </div>
+
+        {/* ── 7. 오늘의 기억 (우선순위 5: 신규 하루 기억 기능) ── */}
+        <div style={{ padding: "0 20px", flexShrink: 0 }}>
+          <TodayMemoryCard childType={childType} onViewMemories={onMemory} />
         </div>
 
       </div>
 
-      {/* ── 6. 하단 내비게이션 (Bottom Navigation Bar) ── */}
+      {/* ── 8. 하단 내비게이션 (Bottom Navigation Bar: 4개 메뉴) ── */}
       <nav style={{
         height: 68,
         background: "#FFFFFF",
@@ -483,6 +498,7 @@ function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () =
         flexShrink: 0,
         boxShadow: "0 -2px 10px rgba(0,0,0,0.03)",
       }}>
+        {/* 1. 홈 (현재) */}
         <button
           onClick={() => {}}
           aria-label="홈 화면"
@@ -495,15 +511,16 @@ function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () =
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            gap: 3,
+            gap: 2,
             cursor: "pointer",
             color: "#26734D",
           }}
         >
-          <span style={{ fontSize: 22 }}>🏠</span>
-          <span style={{ fontSize: 16, fontWeight: 900 }}>홈</span>
+          <span style={{ fontSize: 20 }}>🏠</span>
+          <span style={{ fontSize: 14, fontWeight: 900 }}>홈</span>
         </button>
 
+        {/* 2. 두뇌 운동 */}
         <button
           onClick={onGame}
           aria-label="두뇌 운동 화면으로 이동"
@@ -516,15 +533,38 @@ function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () =
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            gap: 3,
+            gap: 2,
             cursor: "pointer",
             color: "#626A6E",
           }}
         >
-          <span style={{ fontSize: 22 }}>🧠</span>
-          <span style={{ fontSize: 16, fontWeight: 700 }}>두뇌 운동</span>
+          <span style={{ fontSize: 20 }}>🧠</span>
+          <span style={{ fontSize: 14, fontWeight: 700 }}>두뇌 운동</span>
         </button>
 
+        {/* 3. 나의 기억 */}
+        <button
+          onClick={onMemory}
+          aria-label="나의 기억 저장소 화면으로 이동"
+          style={{
+            flex: 1,
+            height: "100%",
+            background: "none",
+            border: "none",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 2,
+            cursor: "pointer",
+            color: "#626A6E",
+          }}
+        >
+          <span style={{ fontSize: 20 }}>🌷</span>
+          <span style={{ fontSize: 14, fontWeight: 700 }}>나의 기억</span>
+        </button>
+
+        {/* 4. 생활 도움 */}
         <button
           onClick={onGuide}
           aria-label="생활 도움 화면으로 이동"
@@ -537,18 +577,19 @@ function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () =
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            gap: 3,
+            gap: 2,
             cursor: "pointer",
             color: "#626A6E",
           }}
         >
-          <span style={{ fontSize: 22 }}>📷</span>
-          <span style={{ fontSize: 16, fontWeight: 700 }}>생활 도움</span>
+          <span style={{ fontSize: 20 }}>📷</span>
+          <span style={{ fontSize: 14, fontWeight: 700 }}>생활 도움</span>
         </button>
       </nav>
     </div>
   );
 }
+
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ─── SCREEN 2: Guide ──────────────────────────────────────────────────────────
@@ -1982,7 +2023,7 @@ function GameScreen({ onBack }: { onBack: () => void }) {
 // ─── App Shell ────────────────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 
-type Screen = "home" | "guide" | "game";
+type Screen = "home" | "guide" | "game" | "memory";
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>("home");
@@ -1998,6 +2039,8 @@ export default function App() {
         @keyframes wave-1 { from{height:40%} to{height:70%} }
         @keyframes wave-2 { from{height:60%} to{height:100%} }
         @keyframes wave-3 { from{height:30%} to{height:80%} }
+        @keyframes pulse { 0%{transform:scale(1)} 50%{transform:scale(1.08)} 100%{transform:scale(1)} }
+        @keyframes bounce { 0%, 100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
       `}</style>
 
       <div style={{
@@ -2010,9 +2053,23 @@ export default function App() {
       }}>
         <div style={{ height: 6, background: "#FFFFFF", flexShrink: 0 }} />
         <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-          {screen === "home" && <GreetingScreen onGuide={() => setScreen("guide")} onGame={() => setScreen("game")} />}
+          {screen === "home" && (
+            <GreetingScreen
+              onGuide={() => setScreen("guide")}
+              onGame={() => setScreen("game")}
+              onMemory={() => setScreen("memory")}
+            />
+          )}
           {screen === "guide" && <GuideScreen onBack={() => setScreen("home")} />}
           {screen === "game" && <GameScreen onBack={() => setScreen("home")} />}
+          {screen === "memory" && (
+            <MemoryScreen
+              onBack={() => setScreen("home")}
+              onNavigateHome={() => setScreen("home")}
+              onNavigateGame={() => setScreen("game")}
+              onNavigateGuide={() => setScreen("guide")}
+            />
+          )}
         </div>
       </div>
     </div>
