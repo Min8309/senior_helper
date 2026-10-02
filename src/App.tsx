@@ -177,301 +177,402 @@ function StepCard({ number, children, accent }: { number: number; children: Reac
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// ─── SCREEN 1: Greeting ───────────────────────────────────────────────────────
+// ─── SCREEN 1: Greeting (Senior Warm & Accessible UI) ─────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 
 function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () => void }) {
   const [childType, setChildType] = useState<"boy" | "girl">("boy");
   const [playKey, setPlayKey] = useState(0);
-  const [showBubble, setShowBubble] = useState(true);
-  const [weatherSelected, setWeatherSelected] = useState<"sunny" | "cloudy" | null>(null);
+  const [ttsPlaying, setTtsPlaying] = useState(false);
 
-  // 3초 동안 말풍선 표시 후 자동 제거
-  useEffect(() => {
-    setShowBubble(true);
-    const timer = setTimeout(() => {
-      setShowBubble(false);
-    }, 3000);
-    return () => clearTimeout(timer);
-  }, [childType, playKey]);
+  // 손자 / 손녀 음성 낭독
+  const handleSpeakGreeting = useCallback(() => {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      if (ttsPlaying) {
+        window.speechSynthesis.cancel();
+        setTtsPlaying(false);
+        return;
+      }
+
+      const text = childType === "boy"
+        ? "할머니, 좋은 아침이에요! 오늘 저랑 5분만 두뇌 운동 같이 해봐요. 오늘도 손자가 응원할게요!"
+        : "할머니, 좋은 아침이에요! 오늘 날씨가 참 좋아요. 저랑 같이 5분만 두뇌 운동해요. 사랑해요!";
+
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = "ko-KR";
+      utterance.rate = 0.86; // 어르신을 위한 차분하고 또렷한 속도
+      utterance.pitch = childType === "boy" ? 1.05 : 1.25;
+      utterance.onstart = () => setTtsPlaying(true);
+      utterance.onend = () => setTtsPlaying(false);
+      utterance.onerror = () => setTtsPlaying(false);
+      window.speechSynthesis.speak(utterance);
+    } else {
+      setTtsPlaying(p => !p);
+    }
+  }, [childType, ttsPlaying]);
 
   const restartAnimation = () => {
     setPlayKey(prev => prev + 1);
+    handleSpeakGreeting();
   };
 
   return (
-    <div style={{ height: "100%", overflowY: "auto", display: "flex", flexDirection: "column", background: "#F8FAFC" }}>
-      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 22px", borderBottom: "1.5px solid #E5E7EB", background: "#FFFFFF", flexShrink: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 22, fontWeight: 700, color: "#1A1A1A" }}>오전 8:30</span>
-          <SunIcon />
-        </div>
-        <button
-          onClick={() => {
-            if (typeof window !== "undefined" && "speechSynthesis" in window) {
-              const u = new SpeechSynthesisUtterance("소리 크기가 적당한지 확인해보세요.");
-              u.lang = "ko-KR";
-              window.speechSynthesis.speak(u);
-            }
-          }}
-          aria-label="소리 조절"
-          style={{ width: 52, height: 52, borderRadius: 16, background: "#F3F4F6", border: "2px solid #D1D5DB", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
-        >
-          <VolumeIcon />
-        </button>
-      </header>
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "#FFFDF7", overflow: "hidden" }}>
+      {/* ── Scrollable Body Area ── */}
+      <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", paddingBottom: 16 }}>
+        
+        {/* ── 1. HEADER (시간 & 음성 스피커 & 큰 아침 인사) ── */}
+        <header style={{ padding: "18px 20px 10px", flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <span style={{ fontSize: 19, fontWeight: 700, color: "#626A6E" }}>
+              오전 8:30
+            </span>
+            <button
+              onClick={handleSpeakGreeting}
+              aria-label="안내 음성 다시 듣기"
+              style={{
+                width: 52,
+                height: 52,
+                borderRadius: 16,
+                background: ttsPlaying ? "#E7F4EC" : "#FFFFFF",
+                border: `2px solid ${ttsPlaying ? "#26734D" : "#D9DEDA"}`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                boxShadow: "0 2px 8px rgba(30,50,40,0.06)",
+                transition: "all 0.15s ease",
+              }}
+            >
+              <SpeakerIcon color={ttsPlaying ? "#26734D" : "#252A2D"} />
+            </button>
+          </div>
 
-      {/* 손자 / 손녀 선택 탭 버튼 */}
-      <div style={{ padding: "12px 20px 0", display: "flex", gap: 10, flexShrink: 0 }}>
-        <button
-          onClick={() => setChildType("boy")}
-          aria-label="손자 모드 선택"
-          style={{
-            flex: 1,
-            height: 52,
-            borderRadius: 16,
-            border: childType === "boy" ? "3px solid #2563EB" : "2px solid #CBD5E1",
-            background: childType === "boy" ? "#EFF6FF" : "#FFFFFF",
-            color: childType === "boy" ? "#1D4ED8" : "#64748B",
-            fontSize: 18,
-            fontWeight: 800,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 8,
-            cursor: "pointer",
-            boxShadow: childType === "boy" ? "0 4px 12px rgba(37,99,235,0.25)" : "none",
-            transition: "all 0.15s ease",
-          }}
-        >
-          <span style={{ fontSize: 24 }}>👦</span>
-          <span>손자 모드</span>
-        </button>
+          <h1 style={{ fontSize: 26, fontWeight: 900, color: "#252A2D", margin: "0 0 4px", lineHeight: 1.3 }}>
+            좋은 아침이에요, 할머니 👋
+          </h1>
+          <p style={{ fontSize: 18, fontWeight: 700, color: "#626A6E", margin: 0 }}>
+            10월 2일 금요일
+          </p>
+        </header>
 
-        <button
-          onClick={() => setChildType("girl")}
-          aria-label="손녀 모드 선택"
-          style={{
-            flex: 1,
-            height: 52,
-            borderRadius: 16,
-            border: childType === "girl" ? "3px solid #EC4899" : "2px solid #CBD5E1",
-            background: childType === "girl" ? "#FDF2F8" : "#FFFFFF",
-            color: childType === "girl" ? "#DB2777" : "#64748B",
-            fontSize: 18,
-            fontWeight: 800,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 8,
-            cursor: "pointer",
-            boxShadow: childType === "girl" ? "0 4px 12px rgba(236,72,153,0.25)" : "none",
-            transition: "all 0.15s ease",
-          }}
-        >
-          <span style={{ fontSize: 24 }}>👧</span>
-          <span>손녀 모드</span>
-        </button>
-      </div>
-
-      {/* 캐릭터 영상 플레이 영역 (5회 반복 후 마지막 장면 정지 & 3초 말풍선 오버레이) */}
-      <div style={{ padding: "12px 20px 0", flex: "1 1 auto", display: "flex", flexDirection: "column", minHeight: 0 }}>
-        <div
-          onClick={restartAnimation}
-          title="터치하면 다시 인사합니다"
-          style={{
-            background: childType === "boy"
-              ? "linear-gradient(160deg, #EFF6FF 0%, #DBEAFE 100%)"
-              : "linear-gradient(160deg, #FFF1F2 0%, #FCE7F3 100%)",
-            borderRadius: 30,
-            border: `2.5px solid ${childType === "boy" ? "#BFDBFE" : "#FBCFE8"}`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "12px",
-            height: "100%",
-            minHeight: 280,
-            maxHeight: 340,
-            boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
-            position: "relative",
-            overflow: "hidden",
-            cursor: "pointer",
-          }}
-        >
-          {/* 3초 동안 나타나는 말풍선 */}
-          {showBubble && (
-            <div style={{
-              position: "absolute",
-              top: 16,
-              left: "50%",
-              transform: "translateX(-50%)",
-              background: "#FFFFFF",
-              border: `2.5px solid ${childType === "boy" ? "#2563EB" : "#EC4899"}`,
-              borderRadius: 20,
-              padding: "10px 18px",
-              boxShadow: "0 8px 22px rgba(0,0,0,0.15)",
-              zIndex: 10,
-              whiteSpace: "nowrap",
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              animation: "fadeIn 0.2s ease-out",
-            }}>
-              <span style={{ fontSize: 20 }}>💖</span>
-              <span style={{
-                fontSize: 18,
-                fontWeight: 900,
-                color: childType === "boy" ? "#1D4ED8" : "#BE185D",
-              }}>
-                할머니 할아버지 안녕하세요!
-              </span>
-              {/* 말풍선 꼬리 */}
-              <div style={{
-                position: "absolute",
-                bottom: -9,
-                left: "50%",
-                transform: "translateX(-50%)",
-                width: 0,
-                height: 0,
-                borderLeft: "8px solid transparent",
-                borderRight: "8px solid transparent",
-                borderTop: `9px solid ${childType === "boy" ? "#2563EB" : "#EC4899"}`,
-              }} />
-            </div>
-          )}
-
-          {/* GIF 이미지 (5회 루프 재생 후 마지막 프레임 정지) */}
-          <img
-            key={`${childType}-${playKey}`}
-            src={childType === "boy" ? sonjaGif : songirlGif}
-            alt={childType === "boy" ? "손자 인사 영상" : "손녀 인사 영상"}
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "contain",
-              borderRadius: 22,
-            }}
-            onError={(e) => {
-              e.currentTarget.style.display = "none";
-            }}
-          />
-
-          {/* 리플레이 힌트 뱃지 */}
+        {/* ── 2. 오늘 날짜 & 날씨 건강 정보 카드 ── */}
+        <div style={{ padding: "0 20px", marginTop: 4, flexShrink: 0 }}>
           <div style={{
-            position: "absolute",
-            bottom: 10,
-            right: 14,
-            background: "rgba(255, 255, 255, 0.85)",
-            backdropFilter: "blur(4px)",
-            padding: "4px 10px",
-            borderRadius: 12,
-            fontSize: 12,
-            fontWeight: 700,
-            color: "#64748B",
+            background: "#FFF9ED",
+            border: "2px solid #EEDBB2",
+            borderRadius: 20,
+            padding: "14px 18px",
             display: "flex",
             alignItems: "center",
-            gap: 4,
-            border: "1px solid rgba(0,0,0,0.06)",
+            gap: 14,
+            boxShadow: "0 4px 14px rgba(242,162,58,0.08)",
           }}>
-            <span>🔄</span> 터치 시 다시 인사
+            <div style={{ width: 44, height: 44, borderRadius: 14, background: "#FEF3C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, flexShrink: 0 }}>
+              ☀️
+            </div>
+            <div>
+              <div style={{ fontSize: 19, fontWeight: 900, color: "#252A2D" }}>
+                오늘은 맑아요
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "#626A6E", marginTop: 2 }}>
+                산책하기 참 좋은 날이에요
+              </div>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* 날씨 질문 */}
-      <div style={{ padding: "12px 20px 0", display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
-        <p style={{ fontSize: 16, fontWeight: 800, color: "#6B7280", margin: 0 }}>오늘 날씨가 어때요?</p>
-        <div style={{ display: "flex", gap: 10 }}>
+        {/* ── 3. 손자 / 손녀 선택 UI (Segmented Control) ── */}
+        <div style={{ padding: "14px 20px 0", display: "flex", gap: 12, flexShrink: 0 }}>
           <button
-            onClick={() => setWeatherSelected("sunny")}
-            aria-label="창밖이 맑아요"
+            onClick={() => setChildType("boy")}
+            aria-label="손자와 함께 선택"
             style={{
               flex: 1,
               height: 54,
-              borderRadius: 16,
-              border: weatherSelected === "sunny" ? "3px solid #D97706" : "2px solid #FCD34D",
-              background: weatherSelected === "sunny" ? "#FFFBEB" : "#FFFFFF",
+              borderRadius: 18,
+              border: childType === "boy" ? "2.5px solid #26734D" : "2px solid #D9DEDA",
+              background: childType === "boy" ? "#E7F4EC" : "#FFFFFF",
+              color: childType === "boy" ? "#26734D" : "#626A6E",
+              fontSize: 18,
+              fontWeight: childType === "boy" ? 900 : 700,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               gap: 8,
               cursor: "pointer",
+              boxShadow: childType === "boy" ? "0 4px 12px rgba(38,115,77,0.15)" : "none",
+              transition: "all 0.15s ease",
             }}
           >
-            <span style={{ fontSize: 22 }}>☀️</span>
-            <span style={{ fontSize: 17, fontWeight: 800, color: "#92400E" }}>창밖이 맑아요</span>
+            <span style={{ fontSize: 22 }}>👦</span>
+            <span>손자와 함께</span>
           </button>
+
           <button
-            onClick={() => setWeatherSelected("cloudy")}
-            aria-label="조금 흐려요"
+            onClick={() => setChildType("girl")}
+            aria-label="손녀와 함께 선택"
             style={{
               flex: 1,
               height: 54,
-              borderRadius: 16,
-              border: weatherSelected === "cloudy" ? "3px solid #6B7280" : "2px solid #CBD5E1",
-              background: weatherSelected === "cloudy" ? "#F1F5F9" : "#FFFFFF",
+              borderRadius: 18,
+              border: childType === "girl" ? "2.5px solid #26734D" : "2px solid #D9DEDA",
+              background: childType === "girl" ? "#E7F4EC" : "#FFFFFF",
+              color: childType === "girl" ? "#26734D" : "#626A6E",
+              fontSize: 18,
+              fontWeight: childType === "girl" ? 900 : 700,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               gap: 8,
               cursor: "pointer",
+              boxShadow: childType === "girl" ? "0 4px 12px rgba(38,115,77,0.15)" : "none",
+              transition: "all 0.15s ease",
             }}
           >
-            <span style={{ fontSize: 22 }}>☁️</span>
-            <span style={{ fontSize: 17, fontWeight: 800, color: "#374151" }}>조금 흐려요</span>
+            <span style={{ fontSize: 22 }}>👧</span>
+            <span>손녀와 함께</span>
           </button>
         </div>
+
+        {/* ── 4. AI 캐릭터 영역 & 말풍선 / 다시듣기 ── */}
+        <div style={{ padding: "14px 20px 0", flexShrink: 0 }}>
+          <div style={{
+            background: "#FFF9ED",
+            border: "2px solid #D9DEDA",
+            borderRadius: 24,
+            padding: "16px 16px 14px",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            boxShadow: "0 4px 16px rgba(30,50,40,0.06)",
+          }}>
+            {/* 캐릭터 GIF (5회 루프 후 정지, 탭 시 리플레이) */}
+            <div
+              onClick={restartAnimation}
+              title="터치하시면 다시 인사합니다"
+              style={{
+                width: "100%",
+                height: 190,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+              }}
+            >
+              <img
+                key={`${childType}-${playKey}`}
+                src={childType === "boy" ? sonjaGif : songirlGif}
+                alt={childType === "boy" ? "손자 캐릭터" : "손녀 캐릭터"}
+                style={{
+                  maxHeight: "100%",
+                  maxWidth: "100%",
+                  objectFit: "contain",
+                  borderRadius: 18,
+                }}
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                }}
+              />
+            </div>
+
+            {/* 어르신을 위한 친근한 말풍선 */}
+            <div style={{
+              width: "100%",
+              background: "#FFFFFF",
+              border: "2px solid #D9DEDA",
+              borderRadius: 18,
+              padding: "12px 16px",
+              marginTop: 10,
+              boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+              position: "relative",
+            }}>
+              <p style={{ fontSize: 18, fontWeight: 800, color: "#252A2D", lineHeight: 1.45, margin: 0, textAlign: "center", wordBreak: "keep-all" }}>
+                {childType === "boy"
+                  ? "“할머니, 오늘도 같이 해볼까요? 5분만 두뇌 운동해요 😊”"
+                  : "“할머니, 오늘 날씨 참 좋아요! 같이 5분 두뇌 운동해요 💖”"}
+              </p>
+            </div>
+
+            {/* 다시 듣기 버튼 */}
+            <button
+              onClick={handleSpeakGreeting}
+              aria-label="목소리 다시 듣기"
+              style={{
+                marginTop: 10,
+                height: 48,
+                paddingInline: 20,
+                borderRadius: 14,
+                background: "#FFFFFF",
+                border: "2px solid #26734D",
+                color: "#26734D",
+                fontSize: 17,
+                fontWeight: 800,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                cursor: "pointer",
+                boxShadow: "0 2px 6px rgba(38,115,77,0.1)",
+              }}
+            >
+              <SpeakerIcon color="#26734D" />
+              <span>{ttsPlaying ? "목소리 나오는 중..." : "🔊 다시 듣기"}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* ── 5. 핵심 주요 기능 버튼 2개 (가장 중요한 대형 CTA) ── */}
+        <div style={{ padding: "16px 20px 0", display: "flex", flexDirection: "column", gap: 12, flexShrink: 0 }}>
+          
+          {/* 버튼 1: 오늘의 두뇌 운동 (Primary Green) */}
+          <button
+            onClick={onGame}
+            aria-label="오늘의 두뇌 운동 시작하기"
+            style={{
+              width: "100%",
+              minHeight: 78,
+              borderRadius: 20,
+              background: "#26734D",
+              border: "none",
+              padding: "14px 20px",
+              display: "flex",
+              alignItems: "center",
+              gap: 16,
+              cursor: "pointer",
+              boxShadow: "0 6px 18px rgba(38,115,77,0.28)",
+              textAlign: "left",
+            }}
+          >
+            <span style={{ fontSize: 32, flexShrink: 0 }}>🧠</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 21, fontWeight: 900, color: "#FFFFFF", lineHeight: 1.25 }}>
+                오늘의 두뇌 운동
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "#E7F4EC", marginTop: 4 }}>
+                5분 · 기억력 + 손가락 운동
+              </div>
+            </div>
+            <span style={{ fontSize: 24, color: "#FFFFFF", fontWeight: 900 }}>▶</span>
+          </button>
+
+          {/* 버튼 2: 사진 찍고 사용법 물어보기 (Primary Light) */}
+          <button
+            onClick={onGuide}
+            aria-label="사진 찍고 사용법 물어보기"
+            style={{
+              width: "100%",
+              minHeight: 82,
+              borderRadius: 20,
+              background: "#E7F4EC",
+              border: "2.5px solid #26734D",
+              padding: "14px 18px",
+              display: "flex",
+              alignItems: "center",
+              gap: 14,
+              cursor: "pointer",
+              boxShadow: "0 4px 14px rgba(38,115,77,0.12)",
+              textAlign: "left",
+            }}
+          >
+            <span style={{ fontSize: 32, flexShrink: 0 }}>📷</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 20, fontWeight: 900, color: "#1F5D40", lineHeight: 1.25 }}>
+                사진 찍고 사용법 물어보기
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "#26734D", marginTop: 3 }}>
+                리모컨 · 세탁기 · 전자레인지 등
+              </div>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#FFFFFF", padding: "2px 8px", borderRadius: 8, marginTop: 4 }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#26734D" }}>
+                  🔊 음성으로 알려드려요
+                </span>
+              </div>
+            </div>
+            <span style={{ fontSize: 22, color: "#1F5D40", fontWeight: 900 }}>▶</span>
+          </button>
+        </div>
+
       </div>
 
-      <div style={{ minHeight: 12, flexShrink: 0 }} />
+      {/* ── 6. 하단 내비게이션 (Bottom Navigation Bar) ── */}
+      <nav style={{
+        height: 68,
+        background: "#FFFFFF",
+        borderTop: "2px solid #D9DEDA",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-around",
+        flexShrink: 0,
+        boxShadow: "0 -2px 10px rgba(0,0,0,0.03)",
+      }}>
+        <button
+          onClick={() => {}}
+          aria-label="홈 화면"
+          style={{
+            flex: 1,
+            height: "100%",
+            background: "none",
+            border: "none",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 3,
+            cursor: "pointer",
+            color: "#26734D",
+          }}
+        >
+          <span style={{ fontSize: 22 }}>🏠</span>
+          <span style={{ fontSize: 16, fontWeight: 900 }}>홈</span>
+        </button>
 
-      {/* 메인 기능 바로가기 버튼 */}
-      <div style={{ padding: "0 20px 20px", display: "flex", flexDirection: "column", gap: 10, flexShrink: 0 }}>
         <button
           onClick={onGame}
-          aria-label="두뇌 손가락 운동"
+          aria-label="두뇌 운동 화면으로 이동"
           style={{
-            width: "100%",
-            height: 64,
-            borderRadius: 20,
-            background: "linear-gradient(135deg, #7C3AED, #6D28D9)",
+            flex: 1,
+            height: "100%",
+            background: "none",
             border: "none",
             display: "flex",
+            flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            gap: 12,
+            gap: 3,
             cursor: "pointer",
-            boxShadow: "0 5px 18px rgba(109,40,217,0.32)",
+            color: "#626A6E",
           }}
         >
-          <BrainIcon />
-          <span style={{ fontSize: 19, fontWeight: 900, color: "#FFFFFF" }}>두뇌 &amp; 손가락 운동 🧠</span>
+          <span style={{ fontSize: 22 }}>🧠</span>
+          <span style={{ fontSize: 16, fontWeight: 700 }}>두뇌 운동</span>
         </button>
-        
+
         <button
           onClick={onGuide}
-          aria-label="가전제품 사진 찍어 물어보기"
+          aria-label="생활 도움 화면으로 이동"
           style={{
-            width: "100%",
-            height: 64,
-            borderRadius: 20,
-            background: "linear-gradient(135deg, #2E7D32, #388E3C)",
+            flex: 1,
+            height: "100%",
+            background: "none",
             border: "none",
             display: "flex",
+            flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            gap: 12,
+            gap: 3,
             cursor: "pointer",
-            boxShadow: "0 5px 18px rgba(46,125,50,0.32)",
+            color: "#626A6E",
           }}
         >
-          <CameraIcon />
-          <span style={{ fontSize: 19, fontWeight: 900, color: "#FFFFFF" }}>가전제품 사진 찍어 물어보기 📷</span>
+          <span style={{ fontSize: 22 }}>📷</span>
+          <span style={{ fontSize: 16, fontWeight: 700 }}>생활 도움</span>
         </button>
-      </div>
+      </nav>
     </div>
   );
 }
+
 
 
 
@@ -1915,7 +2016,7 @@ export default function App() {
   return (
     <div style={{
       display: "flex", alignItems: "center", justifyContent: "center",
-      width: "100%", minHeight: "100vh", background: "#C8D4DC",
+      width: "100%", minHeight: "100vh", background: "#EAE6DB",
       fontFamily: "'Noto Sans KR', 'Nunito', sans-serif",
     }}>
       <style>{`
@@ -1927,12 +2028,13 @@ export default function App() {
 
       <div style={{
         width: 390, height: 844,
-        background: "#F8FAFC",
-        borderRadius: 44,
-        boxShadow: "0 28px 90px rgba(0,0,0,0.24), 0 4px 16px rgba(0,0,0,0.10)",
+        background: "#FFFDF7",
+        borderRadius: 40,
+        boxShadow: "0 20px 60px rgba(37,42,45,0.18), 0 4px 16px rgba(0,0,0,0.06)",
         overflow: "hidden", display: "flex", flexDirection: "column",
+        border: "4px solid #FFFFFF",
       }}>
-        <div style={{ height: 10, background: "#FFFFFF", flexShrink: 0 }} />
+        <div style={{ height: 6, background: "#FFFFFF", flexShrink: 0 }} />
         <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
           {screen === "home" && <GreetingScreen onGuide={() => setScreen("guide")} onGame={() => setScreen("game")} />}
           {screen === "guide" && <GuideScreen onBack={() => setScreen("home")} />}
@@ -1942,3 +2044,4 @@ export default function App() {
     </div>
   );
 }
+
