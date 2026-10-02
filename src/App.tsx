@@ -4,6 +4,7 @@ import girlVideo from "../img/02.mp4";
 import { AiAskCard } from "./components/AiAskCard";
 import { TodayMemoryCard } from "./components/TodayMemoryCard";
 import { MemoryScreen } from "./components/MemoryScreen";
+import { NameEditModal } from "./components/NameEditModal";
 
 // ─── Shared icons ─────────────────────────────────────────────────────────────
 
@@ -198,6 +199,23 @@ function GreetingScreen({
   const [isVideoMuted, setIsVideoMuted] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  // 사용자 이름 관리 (localStorage 영구 고정 저장)
+  const [userName, setUserName] = useState<string>(() => {
+    try {
+      return localStorage.getItem("senior_user_name") || "김영희";
+    } catch {
+      return "김영희";
+    }
+  });
+  const [isNameModalOpen, setIsNameModalOpen] = useState(false);
+
+  const handleSaveName = (newName: string) => {
+    setUserName(newName);
+    try {
+      localStorage.setItem("senior_user_name", newName);
+    } catch {}
+  };
+
   // 손자 / 손녀 음성 낭독 (상단 스피커 아이콘 탭 시)
   const handleSpeakGreeting = useCallback(() => {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
@@ -208,8 +226,8 @@ function GreetingScreen({
       }
 
       const text = childType === "boy"
-        ? "할머니, 좋은 아침이에요! 오늘 저랑 5분만 두뇌 운동 같이 해봐요. 오늘도 손자가 응원할게요!"
-        : "할머니, 좋은 아침이에요! 오늘 날씨가 참 좋아요. 저랑 같이 5분만 두뇌 운동해요. 사랑해요!";
+        ? `안녕하세요, ${userName}님! 오늘 저랑 5분만 두뇌 운동 같이 해봐요. 오늘도 손자가 응원할게요!`
+        : `안녕하세요, ${userName}님! 오늘 날씨가 참 좋아요. 저랑 같이 5분만 두뇌 운동해요. 사랑해요!`;
 
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
@@ -223,7 +241,7 @@ function GreetingScreen({
     } else {
       setTtsPlaying(p => !p);
     }
-  }, [childType, ttsPlaying]);
+  }, [childType, ttsPlaying, userName]);
 
   // 비디오 터치 시 소리 켜기 및 다시 재생
   const handleVideoTouch = () => {
@@ -243,7 +261,7 @@ function GreetingScreen({
       {/* ── Scrollable Body Area ── */}
       <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", paddingBottom: 24, gap: 16 }}>
         
-        {/* ── 1. HEADER (시간 & 음성 스피커 & 큰 아침 인사) ── */}
+        {/* ── 1. HEADER (시간 & 음성 스피커 & 안녕하세요 00님) ── */}
         <header style={{ padding: "18px 20px 0", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
             <span style={{ fontSize: 19, fontWeight: 700, color: "#626A6E" }}>
@@ -270,9 +288,32 @@ function GreetingScreen({
             </button>
           </div>
 
-          <h1 style={{ fontSize: 26, fontWeight: 900, color: "#252A2D", margin: "0 0 4px", lineHeight: 1.3 }}>
-            좋은 아침이에요, 할머니 👋
-          </h1>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
+            <h1
+              onClick={() => setIsNameModalOpen(true)}
+              title="이름을 변경하시려면 눌러주세요"
+              style={{ fontSize: 26, fontWeight: 900, color: "#252A2D", margin: 0, lineHeight: 1.3, cursor: "pointer" }}
+            >
+              안녕하세요, <span style={{ color: "#26734D", textDecoration: "underline", textUnderlineOffset: 4 }}>{userName}님</span> 👋
+            </h1>
+            <button
+              onClick={() => setIsNameModalOpen(true)}
+              aria-label="이름 변경"
+              style={{
+                background: "#E7F4EC",
+                border: "1.5px solid #26734D",
+                borderRadius: 12,
+                padding: "4px 10px",
+                fontSize: 13,
+                fontWeight: 800,
+                color: "#26734D",
+                cursor: "pointer",
+                flexShrink: 0,
+              }}
+            >
+              ✏️ 이름 변경
+            </button>
+          </div>
           <p style={{ fontSize: 18, fontWeight: 700, color: "#626A6E", margin: 0 }}>
             10월 2일 금요일
           </p>
@@ -435,8 +476,8 @@ function GreetingScreen({
             }}>
               <p style={{ fontSize: 18, fontWeight: 800, color: "#252A2D", lineHeight: 1.45, margin: 0, textAlign: "center", wordBreak: "keep-all" }}>
                 {childType === "boy"
-                  ? "“할머니, 오늘도 같이 해볼까요? 5분만 두뇌 운동해요 😊”"
-                  : "“할머니, 오늘 날씨 참 좋아요! 같이 5분 두뇌 운동해요 💖”"}
+                  ? `“${userName}님, 오늘도 같이 해볼까요? 5분만 두뇌 운동해요 😊”`
+                  : `“${userName}님, 오늘 날씨 참 좋아요! 같이 5분 두뇌 운동해요 💖”`}
               </p>
             </div>
           </div>
@@ -586,6 +627,14 @@ function GreetingScreen({
           <span style={{ fontSize: 14, fontWeight: 700 }}>생활 도움</span>
         </button>
       </nav>
+
+      {/* ── 9. 사용자 이름 변경 모달 ── */}
+      <NameEditModal
+        isOpen={isNameModalOpen}
+        currentName={userName}
+        onClose={() => setIsNameModalOpen(false)}
+        onSave={handleSaveName}
+      />
     </div>
   );
 }
