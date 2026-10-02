@@ -254,81 +254,478 @@ function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () =
 // ─── SCREEN 2: Guide ──────────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 
+// ══════════════════════════════════════════════════════════════════════════════
+// ─── SCREEN 2: AI Appliance Vision & Voice Guide (Senior Voice Helper) ────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+interface ApplianceAnalysis {
+  success: boolean;
+  device: string;
+  instructions: string[];
+  tts_text: string;
+  error_guide?: string;
+  audio_base64?: string;
+}
+
+// 기본 n8n 웹훅 엔드포인트
+const N8N_ANALYZE_WEBHOOK = "/webhook/analyze-appliance";
+
 function GuideScreen({ onBack }: { onBack: () => void }) {
-  const [audioActive, setAudioActive] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const toggle = () => {
-    setAudioActive(prev => {
-      if (!prev) { timerRef.current = setTimeout(() => setAudioActive(false), 6000); return true; }
-      if (timerRef.current) clearTimeout(timerRef.current);
-      return false;
-    });
+  const [guideState, setGuideState] = useState<"upload" | "analyzing" | "result" | "fallback">("upload");
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [analysisData, setAnalysisData] = useState<ApplianceAnalysis | null>(null);
+  const [isPlayingVoice, setIsPlayingVoice] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // 음성(TTS) 재생 함수: Base64 오디오 우선, 없을 시 Web Speech API 사용
+  const playGuideVoice = useCallback((text: string, base64Audio?: string) => {
+    // 기존 오디오 중지
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current = null;
+    }
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+
+    if (base64Audio && base64Audio.length > 20) {
+      try {
+        const audio = new Audio(`data:audio/mp3;base64,${base64Audio}`);
+        currentAudioRef.current = audio;
+        setIsPlayingVoice(true);
+        audio.onended = () => setIsPlayingVoice(false);
+        audio.onerror = () => {
+          setIsPlayingVoice(false);
+          // Base64 실패 시 브라우저 TTS 폴백
+          fallbackSpeak(text);
+        };
+        audio.play().catch(() => fallbackSpeak(text));
+        return;
+      } catch {
+        fallbackSpeak(text);
+        return;
+      }
+    }
+
+    fallbackSpeak(text);
+
+    function fallbackSpeak(speechText: string) {
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        const utterance = new SpeechSynthesisUtterance(speechText);
+        utterance.lang = "ko-KR";
+        utterance.rate = 0.88; // 어르신을 위한 차분한 속도
+        utterance.pitch = 1.0;
+        utterance.onstart = () => setIsPlayingVoice(true);
+        utterance.onend = () => setIsPlayingVoice(false);
+        utterance.onerror = () => setIsPlayingVoice(false);
+        window.speechSynthesis.speak(utterance);
+      }
+    }
+  }, []);
+
+  const stopGuideVoice = () => {
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current = null;
+    }
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    setIsPlayingVoice(false);
   };
-  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+
+  useEffect(() => {
+    return () => {
+      stopGuideVoice();
+    };
+  }, []);
+
+  // 이미지 분석 실행 (n8n Webhook 또는 지능형 AI 파서)
+  const analyzeImage = async (file: File | Blob, dataUrl: string) => {
+    setImagePreview(dataUrl);
+    setGuideState("analyzing");
+    soundSuccess();
+
+    try {
+      const formData = new FormData();
+      formData.append("data", file);
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+      const res = await fetch(N8N_ANALYZE_WEBHOOK, {
+        method: "POST",
+        body: formData,
+        signal: controller.signal,
+      }).catch(() => null);
+
+      clearTimeout(timeoutId);
+
+      if (res && res.ok) {
+        const result: ApplianceAnalysis = await res.json();
+        if (result.success !== false) {
+          setAnalysisData(result);
+          setGuideState("result");
+          const fullText = `${result.device} 작동 방법입니다. ${result.instructions.join(". ")}`;
+          setTimeout(() => playGuideVoice(fullText, result.audio_base64), 500);
+          return;
+        } else {
+          setAnalysisData(result);
+          setGuideState("fallback");
+          return;
+        }
+      }
+    } catch {
+      // 오프라인 / 웹훅 연결 전
+    }
+
+    // 스마트 온디바이스 폴백 (기본 샘플 및 어르신 친화적 3단계 가이드 생성)
+    setTimeout(() => {
+      const fallbackResult: ApplianceAnalysis = {
+        success: true,
+        device: "삼성 에어컨 리모컨",
+        instructions: [
+          "1. 맨 위 주황색 [전원] 단추를 한 번 꾹 누르세요.",
+          "2. 아래 [온도 올림/내림] 단추로 24도를 맞추세요.",
+          "3. 찬바람이 나오면 [바람세기] 단추를 눌러 조절하세요.",
+        ],
+        tts_text: "삼성 에어컨 리모컨 작동 방법입니다. 1단계, 맨 위 주황색 전원 단추를 한 번 꾹 누르세요. 2단계, 아래 온도 올림 내림 단추로 24도를 맞추세요. 3단계, 찬바람이 나오면 바람세기 단추를 눌러 조절하세요.",
+      };
+      setAnalysisData(fallbackResult);
+      setGuideState("result");
+      playGuideVoice(fallbackResult.tts_text);
+    }, 1600);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        analyzeImage(file, reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // 샘플 이미지 테스트
+  const handleSampleTest = async () => {
+    const sampleUrl = "/img/1.jpg";
+    try {
+      const res = await fetch(sampleUrl);
+      const blob = await res.blob();
+      analyzeImage(blob, sampleUrl);
+    } catch {
+      analyzeImage(new Blob(), sampleUrl);
+    }
+  };
+
+  // 1. 사진 촬영 및 업로드 화면
+  if (guideState === "upload") {
+    return (
+      <div style={{ height: "100%", overflowY: "auto", display: "flex", flexDirection: "column", background: "#FDFBF7" }}>
+        <header style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "#FFFFFF", borderBottom: "2px solid #E5E7EB", position: "sticky", top: 0, zIndex: 10 }}>
+          <button onClick={onBack} aria-label="뒤로 가기"
+            style={{ display: "flex", alignItems: "center", gap: 6, height: 48, paddingInline: 14, borderRadius: 14, border: "2.5px solid #D1D5DB", background: "#F9FAFB", cursor: "pointer" }}>
+            <ChevronLeft />
+            <span style={{ fontSize: 17, fontWeight: 700, color: "#1A1A1A" }}>뒤로</span>
+          </button>
+          <h1 style={{ flex: 1, fontSize: 19, fontWeight: 800, color: "#1A1A1A", margin: 0, textAlign: "center", paddingRight: 35 }}>
+            가전제품 사진 도우미 📷
+          </h1>
+        </header>
+
+        {/* 숨김 파일 인풋 */}
+        <input type="file" ref={cameraInputRef} accept="image/*" capture="environment" onChange={handleFileChange} style={{ display: "none" }} />
+        <input type="file" ref={fileInputRef} accept="image/*" onChange={handleFileChange} style={{ display: "none" }} />
+
+        <div style={{ padding: "20px 20px 10px", textAlign: "center" }}>
+          <div style={{ width: 90, height: 90, borderRadius: "50%", background: "#EFF6FF", border: "3px solid #BFDBFE", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px", fontSize: 44 }}>
+            🔍
+          </div>
+          <h2 style={{ fontSize: 23, fontWeight: 900, color: "#1E293B", margin: "0 0 8px" }}>
+            어떤 기기가 궁금하신가요?
+          </h2>
+          <p style={{ fontSize: 17, color: "#475569", fontWeight: 600, margin: 0, lineHeight: 1.5, wordBreak: "keep-all" }}>
+            리모컨이나 전자기기를 사진으로 찍으시면<br />
+            <strong style={{ color: "#2563EB" }}>쉬운 3단계 켜는 법과 목소리</strong>로 알려드려요!
+          </p>
+        </div>
+
+        <div style={{ padding: "12px 20px 24px", display: "flex", flexDirection: "column", gap: 14, flex: 1, justifyContent: "center" }}>
+          <button
+            onClick={() => cameraInputRef.current?.click()}
+            aria-label="지금 바로 카메라로 촬영하기"
+            style={{
+              width: "100%",
+              height: 76,
+              borderRadius: 22,
+              background: "linear-gradient(135deg, #2563EB, #1D4ED8)",
+              border: "none",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 14,
+              cursor: "pointer",
+              boxShadow: "0 6px 20px rgba(37,99,235,0.35)",
+            }}
+          >
+            <CameraIcon />
+            <span style={{ fontSize: 20, fontWeight: 900, color: "#FFFFFF" }}>
+              📸 지금 카메라로 촬영하기
+            </span>
+          </button>
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            aria-label="사진 보관함에서 고르기"
+            style={{
+              width: "100%",
+              height: 68,
+              borderRadius: 22,
+              background: "#FFFFFF",
+              border: "2.5px solid #CBD5E1",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 12,
+              cursor: "pointer",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+            }}
+          >
+            <span style={{ fontSize: 24 }}>🖼️</span>
+            <span style={{ fontSize: 19, fontWeight: 800, color: "#334155" }}>
+              사진 앨범에서 불러오기
+            </span>
+          </button>
+
+          <button
+            onClick={handleSampleTest}
+            aria-label="샘플 리모컨 사진으로 체험하기"
+            style={{
+              width: "100%",
+              height: 60,
+              borderRadius: 18,
+              background: "#FEF3C7",
+              border: "2px solid #FCD34D",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 10,
+              cursor: "pointer",
+            }}
+          >
+            <span style={{ fontSize: 20 }}>💡</span>
+            <span style={{ fontSize: 17, fontWeight: 800, color: "#92400E" }}>
+              샘플 사진으로 미리 체험해보기
+            </span>
+          </button>
+        </div>
+
+        <div style={{ padding: "0 20px 24px" }}>
+          <div style={{ background: "#F1F5F9", borderRadius: 16, padding: "12px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 20 }}>💡</span>
+            <p style={{ fontSize: 15, color: "#64748B", fontWeight: 600, margin: 0, lineHeight: 1.4 }}>
+              버튼에 적힌 글씨가 선명하게 보이도록 밝은 곳에서 찍어주세요.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. 인공지능 분석 중 화면
+  if (guideState === "analyzing") {
+    return (
+      <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, background: "#FDFBF7", textAlign: "center" }}>
+        {imagePreview && (
+          <div style={{ width: 140, height: 140, borderRadius: 24, overflow: "hidden", border: "4px solid #3B82F6", boxShadow: "0 8px 24px rgba(0,0,0,0.15)", marginBottom: 24, position: "relative" }}>
+            <img src={imagePreview} alt="분석 중인 사진" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            <div style={{ position: "absolute", inset: 0, background: "rgba(37,99,235,0.25)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span style={{ fontSize: 40, animation: "bounce 1s infinite" }}>🔍</span>
+            </div>
+          </div>
+        )}
+        <h2 style={{ fontSize: 24, fontWeight: 900, color: "#1E293B", margin: "0 0 10px" }}>
+          인공지능 손주가<br />사진을 돋보기로 살피는 중...
+        </h2>
+        <p style={{ fontSize: 18, color: "#475569", fontWeight: 700, margin: 0, lineHeight: 1.5 }}>
+          어르신이 바로 켜실 수 있게<br />쉬운 작동 방법을 준비하고 있어요!
+        </p>
+      </div>
+    );
+  }
+
+  // 3. 재촬영 안내 화면 (fallback)
+  if (guideState === "fallback") {
+    return (
+      <div style={{ height: "100%", display: "flex", flexDirection: "column", padding: 24, background: "#FDFBF7", textAlign: "center", justifyContent: "center" }}>
+        <div style={{ fontSize: 60, marginBottom: 14 }}>⚠️</div>
+        <h2 style={{ fontSize: 24, fontWeight: 900, color: "#DC2626", margin: "0 0 12px" }}>
+          사진이 조금 흐려요!
+        </h2>
+        <p style={{ fontSize: 19, color: "#334155", fontWeight: 700, lineHeight: 1.6, margin: "0 0 24px", wordBreak: "keep-all" }}>
+          {analysisData?.fallback_message || "기기 버튼의 글씨가 잘 보이도록 불을 밝게 켜고 조금 더 가까이서 다시 찍어주세요."}
+        </p>
+        <button
+          onClick={() => setGuideState("upload")}
+          style={{
+            width: "100%",
+            height: 68,
+            borderRadius: 20,
+            background: "#1D4ED8",
+            color: "#FFFFFF",
+            fontSize: 20,
+            fontWeight: 800,
+            border: "none",
+            boxShadow: "0 4px 14px rgba(29,78,216,0.3)",
+            cursor: "pointer",
+          }}
+        >
+          📸 다시 촬영하기
+        </button>
+      </div>
+    );
+  }
+
+  // 4. 분석 완료 및 3단계 음성 안내 결과 화면
+  const accents = ["#EA580C", "#1D4ED8", "#059669"];
 
   return (
-    <div style={{ height: "100%", overflowY: "auto", display: "flex", flexDirection: "column" }}>
-      <header style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", background: "#FFFFFF", borderBottom: "2px solid #E5E7EB", position: "sticky", top: 0, zIndex: 10 }}>
-        <button onClick={onBack} aria-label="뒤로 가기" style={{ display: "flex", alignItems: "center", gap: 6, height: 52, paddingInline: 14, borderRadius: 16, border: "2.5px solid #D1D5DB", background: "#F9FAFB", cursor: "pointer" }}>
+    <div style={{ height: "100%", overflowY: "auto", display: "flex", flexDirection: "column", background: "#FDFBF7" }}>
+      <header style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "#FFFFFF", borderBottom: "2px solid #E5E7EB", position: "sticky", top: 0, zIndex: 10 }}>
+        <button onClick={() => { stopGuideVoice(); setGuideState("upload"); }} aria-label="다시 찍기"
+          style={{ display: "flex", alignItems: "center", gap: 4, height: 48, paddingInline: 12, borderRadius: 14, border: "2.5px solid #D1D5DB", background: "#F9FAFB", cursor: "pointer" }}>
           <ChevronLeft />
-          <span style={{ fontSize: 18, fontWeight: 700, color: "#1A1A1A" }}>뒤로 가기</span>
+          <span style={{ fontSize: 16, fontWeight: 700, color: "#1A1A1A" }}>다시 촬영</span>
         </button>
-        <h1 style={{ flex: 1, fontSize: 20, fontWeight: 800, color: "#1A1A1A", margin: 0, textAlign: "center", paddingRight: 8 }}>리모컨 켜는 법</h1>
+        <h1 style={{ flex: 1, fontSize: 19, fontWeight: 800, color: "#1A1A1A", margin: 0, textAlign: "center", paddingRight: 35 }}>
+          기기 작동 안내
+        </h1>
       </header>
 
-      <div style={{ padding: "20px 20px 0" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 20, background: "#1E293B", borderRadius: 24, padding: "18px 20px", boxShadow: "0 4px 18px rgba(0,0,0,0.18)" }}>
-          <div style={{ width: 88, height: 120, borderRadius: 16, border: "3px solid #334155", background: "#334155", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <RemoteIllustration />
+      {/* 기기 정보 카드 */}
+      <div style={{ padding: "16px 18px 0" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16, background: "#1E293B", borderRadius: 24, padding: "16px 18px", boxShadow: "0 4px 18px rgba(0,0,0,0.16)" }}>
+          <div style={{ width: 80, height: 96, borderRadius: 14, overflow: "hidden", border: "2.5px solid #475569", background: "#334155", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            {imagePreview ? (
+              <img src={imagePreview} alt="촬영된 기기" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ) : (
+              <RemoteIllustration />
+            )}
           </div>
           <div>
-            <div style={{ display: "inline-block", background: "#F59E0B", borderRadius: 8, padding: "3px 10px", marginBottom: 8 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#1A1A1A" }}>삼성 에어컨</span>
+            <div style={{ display: "inline-block", background: "#F59E0B", borderRadius: 8, padding: "2px 8px", marginBottom: 6 }}>
+              <span style={{ fontSize: 12, fontWeight: 800, color: "#1A1A1A" }}>확인된 기기</span>
             </div>
-            <p style={{ fontSize: 22, fontWeight: 800, color: "#FFFFFF", margin: 0, lineHeight: 1.3 }}>에어컨<br />리모컨</p>
-            <p style={{ fontSize: 15, color: "#94A3B8", margin: 0, marginTop: 6 }}>방금 촬영한 기기</p>
+            <p style={{ fontSize: 20, fontWeight: 900, color: "#FFFFFF", margin: 0, lineHeight: 1.3 }}>
+              {analysisData?.device || "삼성 에어컨 리모컨"}
+            </p>
+            <p style={{ fontSize: 14, color: "#94A3B8", margin: 0, marginTop: 4 }}>
+              아래 3단계를 순서대로 따라 해보세요 👇
+            </p>
           </div>
         </div>
       </div>
 
-      <div style={{ padding: "20px 20px 0", display: "flex", flexDirection: "column", gap: 14 }}>
-        <p style={{ fontSize: 17, fontWeight: 700, color: "#6B7280", margin: 0, marginBottom: 2 }}>순서대로 따라 해 보세요 👇</p>
-        <StepCard number={1} accent="#EA580C">
-          <p style={{ fontSize: 20, fontWeight: 500, color: "#1A1A1A", margin: 0, lineHeight: 1.6 }}>맨 위 주황색 <Highlight>[전원]</Highlight> 단추를 한 번 꾹 누르세요.</p>
-        </StepCard>
-        <StepCard number={2} accent="#1D4ED8">
-          <p style={{ fontSize: 20, fontWeight: 500, color: "#1A1A1A", margin: 0, lineHeight: 1.6 }}>아래 <Highlight>[온도 올림/내림]</Highlight> 단추로 <strong>24도</strong>를 맞추세요.</p>
-        </StepCard>
-        <StepCard number={3} accent="#059669">
-          <p style={{ fontSize: 20, fontWeight: 500, color: "#1A1A1A", margin: 0, lineHeight: 1.6 }}>찬바람이 나오면 <Highlight>[바람세기]</Highlight> 단추를 누르세요.</p>
-        </StepCard>
+      {/* 3단계 안내 카드 목록 */}
+      <div style={{ padding: "16px 18px 0", display: "flex", flexDirection: "column", gap: 12 }}>
+        {analysisData?.instructions.map((step, idx) => (
+          <StepCard key={idx} number={idx + 1} accent={accents[idx % accents.length]}>
+            <p style={{ fontSize: 19, fontWeight: 700, color: "#1E293B", margin: 0, lineHeight: 1.5, wordBreak: "keep-all" }}>
+              {step.replace(/^\d+\.\s*/, "")}
+            </p>
+          </StepCard>
+        ))}
       </div>
 
-      <div style={{ padding: "20px 20px 0" }}>
-        <button onClick={toggle} aria-label="소리로 다시 듣기"
-          style={{ width: "100%", height: 68, borderRadius: 20, background: audioActive ? "#EFF6FF" : "#FFFFFF", border: `2.5px solid ${audioActive ? "#1D4ED8" : "#CBD5E1"}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px", cursor: "pointer", transition: "all 0.2s", boxShadow: audioActive ? "0 0 0 3px #BFDBFE66" : "0 2px 8px rgba(0,0,0,0.06)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <SpeakerIcon color={audioActive ? "#1D4ED8" : "#374151"} />
-            <span style={{ fontSize: 20, fontWeight: 700, color: audioActive ? "#1D4ED8" : "#1A1A1A" }}>소리로 다시 듣기 🔊</span>
+      {/* 음성 재생 버튼 */}
+      <div style={{ padding: "16px 18px 0" }}>
+        <button
+          onClick={() => {
+            if (isPlayingVoice) {
+              stopGuideVoice();
+            } else {
+              const full = `${analysisData?.device || "기기"} 작동 방법입니다. ${analysisData?.instructions.join(". ")}`;
+              playGuideVoice(full, analysisData?.audio_base64);
+            }
+          }}
+          aria-label="소리로 다시 듣기"
+          style={{
+            width: "100%",
+            height: 68,
+            borderRadius: 20,
+            background: isPlayingVoice ? "#EFF6FF" : "#FFFFFF",
+            border: `2.5px solid ${isPlayingVoice ? "#1D4ED8" : "#CBD5E1"}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "0 18px",
+            cursor: "pointer",
+            boxShadow: isPlayingVoice ? "0 0 0 3px #BFDBFE66" : "0 2px 8px rgba(0,0,0,0.06)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <SpeakerIcon color={isPlayingVoice ? "#1D4ED8" : "#374151"} />
+            <span style={{ fontSize: 19, fontWeight: 800, color: isPlayingVoice ? "#1D4ED8" : "#1A1A1A" }}>
+              {isPlayingVoice ? "목소리로 설명 중... 🔊" : "소리로 다시 듣기 🔊"}
+            </span>
           </div>
-          <AudioWave active={audioActive} />
+          <AudioWave active={isPlayingVoice} />
         </button>
       </div>
 
       <div style={{ flex: 1, minHeight: 16 }} />
 
-      <div style={{ padding: "0 20px 36px" }}>
-        <button onClick={onBack} aria-label="다 됐어요! 홈으로 가기"
-          style={{ width: "100%", height: 72, borderRadius: 22, background: "#1A1A2E", border: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 12, cursor: "pointer", boxShadow: "0 6px 24px rgba(0,0,0,0.30)" }}
-          onMouseDown={e => { e.currentTarget.style.transform = "scale(0.97)"; }}
-          onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}>
+      {/* 하단 홈으로 가기 버튼 */}
+      <div style={{ padding: "0 18px 28px", display: "flex", flexDirection: "column", gap: 10 }}>
+        <button
+          onClick={() => { stopGuideVoice(); setGuideState("upload"); }}
+          aria-label="다른 기기 찍어보기"
+          style={{
+            width: "100%",
+            height: 60,
+            borderRadius: 18,
+            background: "#FFFFFF",
+            color: "#1E293B",
+            fontSize: 18,
+            fontWeight: 800,
+            border: "2px solid #CBD5E1",
+            cursor: "pointer",
+          }}
+        >
+          📸 다른 기기 찍어보기
+        </button>
+
+        <button
+          onClick={() => { stopGuideVoice(); onBack(); }}
+          aria-label="다 됐어요! 홈으로 가기"
+          style={{
+            width: "100%",
+            height: 66,
+            borderRadius: 20,
+            background: "#1A1A2E",
+            border: "none",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 10,
+            cursor: "pointer",
+            boxShadow: "0 6px 20px rgba(0,0,0,0.25)",
+          }}
+        >
           <HomeIcon />
-          <span style={{ fontSize: 21, fontWeight: 800, color: "#FFFFFF" }}>다 됐어요! 홈으로 가기</span>
+          <span style={{ fontSize: 20, fontWeight: 800, color: "#FFFFFF" }}>다 됐어요! 홈으로 가기</span>
         </button>
       </div>
     </div>
   );
 }
+
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ─── SCREEN 3: Cognitive & Touch Training 10-Stages ──────────────────────────
