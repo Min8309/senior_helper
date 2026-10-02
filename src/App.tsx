@@ -331,310 +331,949 @@ function GuideScreen({ onBack }: { onBack: () => void }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// ─── SCREEN 3: Cognitive / Fine-motor Training ────────────────────────────────
+// ─── SCREEN 3: Cognitive & Touch Training 10-Stages ──────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 
-// Scattered positions for number circles (% of container)
-const NUMBER_POSITIONS = [
-  { x: 18, y: 12 },
-  { x: 60, y: 28 },
-  { x: 22, y: 54 },
-  { x: 68, y: 60 },
-  { x: 42, y: 80 },
+// ─── Web Audio & Haptic Feedback System ───────────────────────────────────────
+
+let globalAudioCtx: AudioContext | null = null;
+
+function getAudioContext(): AudioContext | null {
+  try {
+    if (typeof window === "undefined") return null;
+    const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextClass) return null;
+    if (!globalAudioCtx) {
+      globalAudioCtx = new AudioContextClass();
+    }
+    if (globalAudioCtx.state === "suspended") {
+      globalAudioCtx.resume();
+    }
+    return globalAudioCtx;
+  } catch {
+    return null;
+  }
+}
+
+function playTone(freq: number, type: OscillatorType, dur: number, gainVal = 0.3) {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    gain.gain.setValueAtTime(gainVal, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + dur);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + dur);
+  } catch {
+    // Audio playback fallback
+  }
+}
+
+function soundSuccess() {
+  playTone(523.25, "triangle", 0.22, 0.35); // C5
+}
+
+function soundError() {
+  playTone(220, "sine", 0.35, 0.3); // A3
+}
+
+function soundStageClear() {
+  playTone(392.00, "triangle", 0.25, 0.35); // G4
+  setTimeout(() => playTone(523.25, "triangle", 0.35, 0.35), 150); // C5
+  setTimeout(() => playTone(659.25, "triangle", 0.45, 0.35), 300); // E5
+}
+
+function soundGameComplete() {
+  const notes = [523.25, 659.25, 783.99, 1046.50];
+  notes.forEach((freq, idx) => {
+    setTimeout(() => playTone(freq, "triangle", 0.4, 0.35), idx * 140);
+  });
+}
+
+function buzz(pattern: number | number[]) {
+  if (typeof navigator !== "undefined" && navigator.vibrate) {
+    try {
+      navigator.vibrate(pattern);
+    } catch {
+      // 진동 미지원 환경 대응
+    }
+  }
+}
+
+function shuffleArray<T>(arr: T[]): T[] {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+// ─── Mode Types & Metadata ───────────────────────────────────────────────────
+
+type GameMode = "menu" | "number" | "trace" | "color" | "memory" | "match";
+
+interface ModeInfo {
+  id: GameMode;
+  title: string;
+  badge: string;
+  icon: string;
+  color: string;
+  bgLight: string;
+  desc: string;
+}
+
+const MODES: ModeInfo[] = [
+  { id: "number", title: "1. 숫자 순서대로 누르기", badge: "집중력 향상", icon: "🔢", color: "#1D4ED8", bgLight: "#EFF6FF", desc: "1부터 순서대로 숫자를 찾아 터치하세요" },
+  { id: "trace", title: "2. 선 따라 긋기", badge: "손가락 정밀 감각", icon: "✏️", color: "#047857", bgLight: "#ECFDF5", desc: "출발점에서 도착점까지 선을 따라 부드럽게 그으세요" },
+  { id: "color", title: "3. 색깔 맞추기", badge: "인지 반응 훈련", icon: "🎨", color: "#D97706", bgLight: "#FFFBEB", desc: "제시된 색상의 단추를 빠르게 찾아보세요" },
+  { id: "memory", title: "4. 기억력 게임", badge: "단기 기억력 활성화", icon: "🧠", color: "#7C3AED", bgLight: "#F5F3FF", desc: "불빛과 소리가 켜진 순서를 기억해 따라 누르세요" },
+  { id: "match", title: "5. 같은 그림 찾기", badge: "시각 기억 훈련", icon: "🃏", color: "#DC2626", bgLight: "#FEF2F2", desc: "뒤집힌 카드 중에서 같은 그림 짝을 맞춰보세요" },
 ];
 
-// Trace path points (% of container width/height)
-const TRACE_POINTS = [
-  { x: 15, y: 20 },
-  { x: 35, y: 55 },
-  { x: 60, y: 30 },
-  { x: 75, y: 65 },
-  { x: 88, y: 85 },
-];
+// ─── 1. NUMBER GAME (10 Levels) ──────────────────────────────────────────────
 
-type GameMode = "number" | "trace";
-
-function NumberGame({ onComplete }: { onComplete: () => void }) {
-  const [nextTarget, setNextTarget] = useState(1);
-  const [tapped, setTapped] = useState<number[]>([]);
-  const [flash, setFlash] = useState<number | null>(null);
-  const [wrong, setWrong] = useState<number | null>(null);
-  const done = tapped.length === 5;
+function NumberMode({ level, onLevelComplete, onError }: { level: number; onLevelComplete: () => void; onError: () => void }) {
+  const total = Math.min(12, level + 2); // 1단계: 3개 ~ 10단계: 12개
+  const [currentTarget, setCurrentTarget] = useState(1);
+  const [positions, setPositions] = useState<{ x: number; y: number }[]>([]);
+  const [clearedNumbers, setClearedNumbers] = useState<number[]>([]);
+  const [wrongNum, setWrongNum] = useState<number | null>(null);
 
   useEffect(() => {
-    if (done) { const t = setTimeout(onComplete, 1800); return () => clearTimeout(t); }
-  }, [done, onComplete]);
+    setCurrentTarget(1);
+    setClearedNumbers([]);
+    setWrongNum(null);
+
+    // 격자 기반 무작위 위치 생성 (겹침 방지)
+    const cols = total <= 4 ? 2 : total <= 8 ? 3 : 4;
+    const rows = Math.ceil(total / cols);
+    const slots: { x: number; y: number }[] = [];
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        slots.push({
+          x: (c + 0.5) * (100 / cols) + (Math.random() * 8 - 4),
+          y: (r + 0.5) * (100 / rows) + (Math.random() * 8 - 4),
+        });
+      }
+    }
+    const shuffledSlots = shuffleArray(slots).slice(0, total);
+    setPositions(shuffledSlots);
+  }, [level, total]);
+
+  const size = Math.max(54, 76 - level * 2);
+  const fontSize = Math.max(22, 34 - level);
 
   const handleTap = (n: number) => {
-    if (tapped.includes(n)) return;
-    if (n === nextTarget) {
-      setFlash(n);
-      setTapped(prev => [...prev, n]);
-      setNextTarget(prev => prev + 1);
-      setTimeout(() => setFlash(null), 500);
+    if (clearedNumbers.includes(n)) return;
+    if (n === currentTarget) {
+      soundSuccess();
+      buzz(35);
+      const next = currentTarget + 1;
+      setClearedNumbers(prev => [...prev, n]);
+      if (next > total) {
+        onLevelComplete();
+      } else {
+        setCurrentTarget(next);
+      }
     } else {
-      setWrong(n);
-      setTimeout(() => setWrong(null), 600);
+      onError();
+      soundError();
+      buzz([80, 40, 80]);
+      setWrongNum(n);
+      setTimeout(() => setWrongNum(null), 500);
     }
   };
 
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%" }}>
-      {/* connecting line ghost */}
-      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}>
-        {tapped.slice(0, -1).map((n, i) => {
-          const a = NUMBER_POSITIONS[n - 1];
-          const b = NUMBER_POSITIONS[tapped[i + 1] - 1];
-          if (!b) return null;
-          return (
-            <line key={i}
-              x1={`${a.x + 9.6}%`} y1={`${a.y + 9.6}%`}
-              x2={`${b.x + 9.6}%`} y2={`${b.y + 9.6}%`}
-              stroke="#10B981" strokeWidth="3" strokeDasharray="6 4" strokeLinecap="round" />
-          );
-        })}
-      </svg>
+    <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden", background: "#F8FAFC" }}>
+      {positions.map((pos, idx) => {
+        const num = idx + 1;
+        const isDone = clearedNumbers.includes(num);
+        const isTarget = num === currentTarget;
+        const isWrong = wrongNum === num;
 
-      {NUMBER_POSITIONS.map((pos, idx) => {
-        const n = idx + 1;
-        const isDone = tapped.includes(n);
-        const isFlash = flash === n;
-        const isWrong = wrong === n;
-        const isNext = n === nextTarget && !done;
+        if (isDone) return null;
+
         return (
           <button
-            key={n}
-            onClick={() => handleTap(n)}
-            aria-label={`숫자 ${n}`}
+            key={`num-${level}-${num}`}
+            onClick={() => handleTap(num)}
+            aria-label={`숫자 ${num}`}
             style={{
               position: "absolute",
-              left: `${pos.x}%`,
-              top: `${pos.y}%`,
-              width: 76,
-              height: 76,
+              left: `calc(${pos.x}% - ${size / 2}px)`,
+              top: `calc(${pos.y}% - ${size / 2}px)`,
+              width: size,
+              height: size,
               borderRadius: "50%",
-              border: "none",
-              background: isDone ? "#10B981" : isWrong ? "#EF4444" : "#2563EB",
+              border: "3.5px solid #FFFFFF",
+              background: isWrong ? "#EF4444" : isTarget ? "#1D4ED8" : "#2563EB",
+              color: "#FFFFFF",
+              fontSize: fontSize,
+              fontWeight: 900,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               cursor: "pointer",
-              transform: isFlash ? "scale(1.18)" : isWrong ? "scale(0.92)" : isNext ? "scale(1.06)" : "scale(1)",
-              transition: "transform 0.18s, background 0.18s",
-              boxShadow: isDone
-                ? "0 4px 16px rgba(16,185,129,0.45)"
-                : isNext
-                  ? "0 0 0 5px #BFDBFE, 0 4px 16px rgba(37,99,235,0.40)"
-                  : "0 4px 14px rgba(37,99,235,0.30)",
-              zIndex: 2,
+              boxShadow: isTarget ? "0 0 0 4px #93C5FD, 0 6px 16px rgba(29,78,216,0.4)" : "0 4px 10px rgba(0,0,0,0.15)",
+              transform: isTarget ? "scale(1.08)" : isWrong ? "scale(0.92)" : "scale(1)",
+              transition: "transform 0.15s, background 0.15s",
+              touchAction: "manipulation",
+              userSelect: "none",
             }}
           >
-            {isDone
-              ? <CheckIcon />
-              : <span style={{ fontSize: 32, fontWeight: 800, color: "#FFFFFF", lineHeight: 1 }}>{n}</span>}
+            {num}
           </button>
         );
       })}
-
-      {done && (
-        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "rgba(240,253,244,0.92)", borderRadius: 20, zIndex: 10 }}>
-          <div style={{ fontSize: 56, marginBottom: 8 }}>🎉</div>
-          <p style={{ fontSize: 24, fontWeight: 800, color: "#065F46", textAlign: "center", margin: 0 }}>잘 하셨어요!</p>
-          <p style={{ fontSize: 18, color: "#047857", margin: "8px 0 0", textAlign: "center" }}>모든 숫자를 눌렀어요!</p>
-        </div>
-      )}
     </div>
   );
 }
 
-function TraceGame({ onComplete }: { onComplete: () => void }) {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const [path, setPath] = useState<{ x: number; y: number }[]>([]);
-  const [drawing, setDrawing] = useState(false);
-  const [done, setDone] = useState(false);
-  const [progress, setProgress] = useState(0);
+// ─── 2. TRACE GAME (10 Levels) ────────────────────────────────────────────────
 
-  const getPoint = (e: React.PointerEvent<SVGSVGElement>) => {
-    const rect = svgRef.current!.getBoundingClientRect();
-    return { x: ((e.clientX - rect.left) / rect.width) * 100, y: ((e.clientY - rect.top) / rect.height) * 100 };
-  };
+function TraceMode({ level, onLevelComplete, onError }: { level: number; onLevelComplete: () => void; onError: () => void }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const isDrawingRef = useRef(false);
+  const errorCooldownRef = useRef(false);
 
-  const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (done) return;
+  const trackWidth = Math.max(32, 68 - (level - 1) * 4);
+  const amplitude = (level - 1) * 8;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // 캔버스 크기 맞춤
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+
+    const startX = 45;
+    const endX = canvas.width - 45;
+    const midY = canvas.height / 2;
+
+    // 배경 가이드 트랙 그리기
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = "#E2E8F0";
+    ctx.lineWidth = trackWidth;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    for (let x = startX; x <= endX; x += 4) {
+      const y = midY + Math.sin((x - startX) / 45) * amplitude;
+      if (x === startX) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // 시작점 (파랑) & 도착점 (초록)
+    const startY = midY;
+    const endY = midY + Math.sin((endX - startX) / 45) * amplitude;
+
+    // 시작점
+    ctx.fillStyle = "#1D4ED8";
+    ctx.beginPath();
+    ctx.arc(startX, startY, 20, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = "bold 13px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("시작", startX, startY);
+
+    // 도착점
+    ctx.fillStyle = "#047857";
+    ctx.beginPath();
+    ctx.arc(endX, endY, 24, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = "bold 13px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("도착", endX, endY);
+  }, [level, amplitude, trackWidth]);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     e.currentTarget.setPointerCapture(e.pointerId);
-    setDrawing(true);
-    setPath([getPoint(e)]);
+    isDrawingRef.current = true;
   };
 
-  const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!drawing || done) return;
-    const pt = getPoint(e);
-    setPath(prev => {
-      const next = [...prev, pt];
-      // estimate how much of guide path is covered
-      let covered = 0;
-      TRACE_POINTS.forEach(tp => {
-        if (next.some(p => Math.hypot(p.x - tp.x, p.y - tp.y) < 12)) covered++;
-      });
-      const pct = Math.round((covered / TRACE_POINTS.length) * 100);
-      setProgress(pct);
-      if (pct === 100) { setDone(true); setTimeout(onComplete, 1800); }
-      return next;
-    });
+  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isDrawingRef.current) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+
+    const startX = 45;
+    const endX = canvas.width - 45;
+    const midY = canvas.height / 2;
+    const endY = midY + Math.sin((endX - startX) / 45) * amplitude;
+
+    if (px >= startX && px <= endX) {
+      const targetY = midY + Math.sin((px - startX) / 45) * amplitude;
+      const dist = Math.abs(py - targetY);
+
+      // 이탈 판정
+      if (dist > trackWidth / 2 + 8) {
+        if (!errorCooldownRef.current) {
+          errorCooldownRef.current = true;
+          onError();
+          soundError();
+          buzz(30);
+          setTimeout(() => { errorCooldownRef.current = false; }, 350);
+        }
+      }
+    }
+
+    // 도착점 도달 판정
+    if (px >= endX - 25 && Math.abs(py - endY) < 38) {
+      isDrawingRef.current = false;
+      soundSuccess();
+      buzz(45);
+      onLevelComplete();
+    }
   };
 
-  const onPointerUp = () => setDrawing(false);
-
-  const polyline = path.map(p => `${p.x},${p.y}`).join(" ");
+  const handlePointerUp = () => {
+    isDrawingRef.current = false;
+  };
 
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%" }}>
-      <svg ref={svgRef} viewBox="0 0 100 100" preserveAspectRatio="none"
+    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "#FFFFFF", touchAction: "none" }}>
+      <canvas
+        ref={canvasRef}
         style={{ width: "100%", height: "100%", touchAction: "none", cursor: "crosshair" }}
-        onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}>
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+      />
+    </div>
+  );
+}
 
-        {/* Guide path */}
-        <polyline points={TRACE_POINTS.map(p => `${p.x},${p.y}`).join(" ")}
-          fill="none" stroke="#CBD5E1" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="3 3" />
+// ─── 3. COLOR GAME (10 Levels) ────────────────────────────────────────────────
 
-        {/* Guide dots */}
-        {TRACE_POINTS.map((p, i) => (
-          <g key={i}>
-            <circle cx={p.x} cy={p.y} r="4.5" fill={done ? "#10B981" : "#94A3B8"} />
-            {i === 0 && !done && (
-              <text x={p.x} y={p.y - 6} textAnchor="middle" fontSize="4" fill="#475569" fontWeight="700">시작</text>
-            )}
-          </g>
+interface ColorOption {
+  name: string;
+  hex: string;
+}
+
+const COLOR_PALETTE: ColorOption[] = [
+  { name: "빨강", hex: "#DC2626" },
+  { name: "파랑", hex: "#1D4ED8" },
+  { name: "초록", hex: "#047857" },
+  { name: "노랑", hex: "#D97706" },
+  { name: "보라", hex: "#7C3AED" },
+  { name: "분홍", hex: "#DB2777" },
+];
+
+function ColorMode({ level, onLevelComplete, onError, setGuideText }: { level: number; onLevelComplete: () => void; onError: () => void; setGuideText: (t: string) => void }) {
+  const [options, setOptions] = useState<ColorOption[]>([]);
+  const [target, setTarget] = useState<ColorOption | null>(null);
+
+  useEffect(() => {
+    const count = Math.min(6, 2 + Math.ceil(level / 2)); // 2개 ~ 6개
+    const shuffled = shuffleArray(COLOR_PALETTE).slice(0, count);
+    const chosen = shuffled[Math.floor(Math.random() * shuffled.length)];
+    setOptions(shuffled);
+    setTarget(chosen);
+    setGuideText(`아래에서 [${chosen.name}]색 버튼을 눌러보세요!`);
+  }, [level, setGuideText]);
+
+  const handleSelect = (opt: ColorOption) => {
+    if (!target) return;
+    if (opt.name === target.name) {
+      soundSuccess();
+      buzz(40);
+      onLevelComplete();
+    } else {
+      onError();
+      soundError();
+      buzz([80, 40, 80]);
+    }
+  };
+
+  return (
+    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: options.length <= 4 ? "repeat(2, 1fr)" : "repeat(3, 1fr)",
+        gap: 16,
+        width: "100%",
+        maxWidth: 340,
+      }}>
+        {options.map((opt) => (
+          <button
+            key={opt.name}
+            onClick={() => handleSelect(opt)}
+            aria-label={opt.name}
+            style={{
+              height: options.length <= 4 ? 96 : 80,
+              borderRadius: 20,
+              border: "4px solid #FFFFFF",
+              background: opt.hex,
+              color: "#FFFFFF",
+              fontSize: 22,
+              fontWeight: 800,
+              boxShadow: "0 6px 14px rgba(0,0,0,0.18)",
+              cursor: "pointer",
+              transition: "transform 0.15s",
+              touchAction: "manipulation",
+            }}
+            onMouseDown={(e) => { e.currentTarget.style.transform = "scale(0.95)"; }}
+            onMouseUp={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
+          >
+            {opt.name}
+          </button>
         ))}
+      </div>
+    </div>
+  );
+}
 
-        {/* User's drawn path */}
-        {path.length > 1 && (
-          <polyline points={polyline} fill="none" stroke="#3B82F6" strokeWidth="4"
-            strokeLinecap="round" strokeLinejoin="round" opacity="0.85" />
-        )}
-      </svg>
+// ─── 4. MEMORY GAME (10 Levels - Simon Game) ──────────────────────────────────
 
-      {/* Progress bar */}
-      <div style={{ position: "absolute", bottom: 10, left: 10, right: 10, height: 10, background: "#E2E8F0", borderRadius: 10, overflow: "hidden" }}>
-        <div style={{ height: "100%", width: `${progress}%`, background: progress === 100 ? "#10B981" : "#3B82F6", borderRadius: 10, transition: "width 0.3s" }} />
+function MemoryMode({ level, onLevelComplete, onError, setGuideText }: { level: number; onLevelComplete: () => void; onError: () => void; setGuideText: (t: string) => void }) {
+  const padColors = ["#1D4ED8", "#047857", "#D97706", "#DC2626"];
+  const padTones = [261.63, 329.63, 392.00, 523.25]; // 도, 미, 솔, 높은 도
+
+  const seqLength = level + 2; // 1단계: 3개 ~ 10단계: 12개
+  const [sequence, setSequence] = useState<number[]>([]);
+  const [activePad, setActivePad] = useState<number | null>(null);
+  const [inputStep, setInputStep] = useState(0);
+  const [isPlayingSeq, setIsPlayingSeq] = useState(true);
+
+  const playSequence = useCallback((seq: number[]) => {
+    setIsPlayingSeq(true);
+    setInputStep(0);
+    setGuideText("불빛과 소리 순서를 잘 기억해 보세요!");
+
+    seq.forEach((padIdx, i) => {
+      setTimeout(() => {
+        setActivePad(padIdx);
+        playTone(padTones[padIdx], "triangle", 0.35, 0.4);
+        buzz(30);
+        setTimeout(() => {
+          setActivePad(null);
+          if (i === seq.length - 1) {
+            setTimeout(() => {
+              setIsPlayingSeq(false);
+              setGuideText("이제 같은 순서로 눌러보세요!");
+            }, 300);
+          }
+        }, 400);
+      }, (i + 1) * 650);
+    });
+  }, [padTones, setGuideText]);
+
+  useEffect(() => {
+    const newSeq: number[] = [];
+    for (let i = 0; i < seqLength; i++) {
+      newSeq.push(Math.floor(Math.random() * 4));
+    }
+    setSequence(newSeq);
+    playSequence(newSeq);
+  }, [level, seqLength, playSequence]);
+
+  const handlePadTap = (idx: number) => {
+    if (isPlayingSeq) return;
+
+    setActivePad(idx);
+    playTone(padTones[idx], "triangle", 0.25, 0.35);
+    buzz(30);
+    setTimeout(() => setActivePad(null), 250);
+
+    if (idx === sequence[inputStep]) {
+      const nextStep = inputStep + 1;
+      if (nextStep >= sequence.length) {
+        soundSuccess();
+        buzz(50);
+        onLevelComplete();
+      } else {
+        setInputStep(nextStep);
+      }
+    } else {
+      onError();
+      soundError();
+      buzz([80, 40, 80]);
+      setGuideText("틀렸어요! 순서를 다시 보여드릴게요.");
+      setTimeout(() => {
+        playSequence(sequence);
+      }, 900);
+    }
+  };
+
+  return (
+    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16, width: "100%", maxWidth: 300 }}>
+        {padColors.map((col, idx) => {
+          const isLit = activePad === idx;
+          return (
+            <button
+              key={idx}
+              disabled={isPlayingSeq}
+              onClick={() => handlePadTap(idx)}
+              aria-label={`패드 ${idx + 1}`}
+              style={{
+                height: 110,
+                borderRadius: 24,
+                border: isLit ? "5px solid #FFFFFF" : "4px solid rgba(255,255,255,0.7)",
+                background: col,
+                opacity: isLit ? 1 : 0.45,
+                transform: isLit ? "scale(1.06)" : "scale(1)",
+                boxShadow: isLit ? `0 0 24px ${col}, 0 4px 12px rgba(0,0,0,0.2)` : "0 4px 8px rgba(0,0,0,0.1)",
+                cursor: isPlayingSeq ? "default" : "pointer",
+                transition: "opacity 0.15s, transform 0.15s, box-shadow 0.15s",
+                touchAction: "manipulation",
+              }}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── 5. MATCH GAME (10 Levels - Card Matching) ────────────────────────────────
+
+const FRUIT_ICONS = ["🍎", "🍌", "🍇", "🍊", "🍓", "🍉", "🍒", "🥝"];
+
+function MatchMode({ level, onLevelComplete, onError }: { level: number; onLevelComplete: () => void; onError: () => void }) {
+  const pairsCount = Math.min(8, Math.max(2, level + 1)); // 2쌍 ~ 8쌍
+  const [cards, setCards] = useState<{ id: number; symbol: string; isOpen: boolean; isMatched: boolean }[]>([]);
+  const [firstPick, setFirstPick] = useState<number | null>(null);
+  const [isLocked, setIsLocked] = useState(false);
+
+  useEffect(() => {
+    const selectedFruits = FRUIT_ICONS.slice(0, pairsCount);
+    const deckSymbols = shuffleArray([...selectedFruits, ...selectedFruits]);
+    setCards(deckSymbols.map((sym, idx) => ({ id: idx, symbol: sym, isOpen: false, isMatched: false })));
+    setFirstPick(null);
+    setIsLocked(false);
+  }, [level, pairsCount]);
+
+  const handleCardTap = (idx: number) => {
+    if (isLocked) return;
+    const card = cards[idx];
+    if (card.isOpen || card.isMatched) return;
+
+    // 카드 열기
+    const newCards = [...cards];
+    newCards[idx].isOpen = true;
+    setCards(newCards);
+    buzz(25);
+
+    if (firstPick === null) {
+      setFirstPick(idx);
+    } else {
+      const firstCard = cards[firstPick];
+      if (firstCard.symbol === card.symbol) {
+        // 일치
+        soundSuccess();
+        buzz(40);
+        newCards[firstPick].isMatched = true;
+        newCards[idx].isMatched = true;
+        setCards(newCards);
+        setFirstPick(null);
+
+        const allMatched = newCards.every(c => c.isMatched);
+        if (allMatched) {
+          onLevelComplete();
+        }
+      } else {
+        // 불일치
+        onError();
+        soundError();
+        buzz([80, 40, 80]);
+        setIsLocked(true);
+        setTimeout(() => {
+          const resetCards = [...cards];
+          resetCards[firstPick].isOpen = false;
+          resetCards[idx].isOpen = false;
+          setCards(resetCards);
+          setFirstPick(null);
+          setIsLocked(false);
+        }, 800);
+      }
+    }
+  };
+
+  const cols = pairsCount <= 3 ? 2 : pairsCount <= 6 ? 3 : 4;
+
+  return (
+    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: 14 }}>
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: `repeat(${cols}, 1fr)`,
+        gap: 10,
+        width: "100%",
+        maxWidth: 340,
+      }}>
+        {cards.map((c, idx) => (
+          <button
+            key={c.id}
+            onClick={() => handleCardTap(idx)}
+            aria-label="과일 카드"
+            style={{
+              height: pairsCount > 6 ? 64 : 76,
+              borderRadius: 16,
+              border: "3px solid #FFFFFF",
+              background: c.isMatched ? "#D1FAE5" : c.isOpen ? "#FEF3C7" : "#1D4ED8",
+              color: c.isOpen || c.isMatched ? "#1E293B" : "#FFFFFF",
+              fontSize: c.isOpen || c.isMatched ? 34 : 26,
+              fontWeight: 900,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 4px 8px rgba(0,0,0,0.12)",
+              cursor: "pointer",
+              transform: c.isOpen ? "scale(1.03)" : "scale(1)",
+              transition: "transform 0.15s, background 0.15s",
+              touchAction: "manipulation",
+            }}
+          >
+            {c.isOpen || c.isMatched ? c.symbol : "❓"}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── FINAL RESULT & EVALUATION SCREEN ─────────────────────────────────────────
+
+function ResultView({
+  modeInfo,
+  durationSec,
+  mistakes,
+  onRetry,
+  onHome,
+}: {
+  modeInfo: ModeInfo;
+  durationSec: number;
+  mistakes: number;
+  onRetry: () => void;
+  onHome: () => void;
+}) {
+  useEffect(() => {
+    soundGameComplete();
+    buzz([100, 50, 100, 50, 200]);
+  }, []);
+
+  let grade = "우수";
+  let gradeBadge = "⭐ 우수";
+  let gradeColor = "#1D4ED8";
+  let praise = "아주 훌륭하게 10단계를 해내셨습니다!";
+
+  if (mistakes <= 3) {
+    grade = "최우수";
+    gradeBadge = "🏆 최우수";
+    gradeColor = "#047857";
+    praise = "정확도와 집중력이 청년 못지않으십니다! 대단하세요!";
+  } else if (mistakes <= 8) {
+    grade = "우수";
+    gradeBadge = "⭐ 우수";
+    gradeColor = "#1D4ED8";
+    praise = "차분하고 침착하게 끝까지 멋지게 완주하셨습니다!";
+  } else {
+    grade = "노력상";
+    gradeBadge = "👏 노력상";
+    gradeColor = "#D97706";
+    praise = "끝까지 포기하지 않으신 어르신의 열정에 큰 박수를 보냅니다!";
+  }
+
+  return (
+    <div style={{ height: "100%", overflowY: "auto", display: "flex", flexDirection: "column", padding: "20px 20px 32px", background: "#FDFBF7", textAlign: "center" }}>
+      <div style={{ marginTop: 16 }}>
+        <span style={{ fontSize: 60 }}>🎉</span>
+        <h1 style={{ fontSize: 26, fontWeight: 900, color: "#047857", margin: "10px 0 6px" }}>
+          10단계 훈련 완료!
+        </h1>
+        <p style={{ fontSize: 18, color: "#475569", fontWeight: 700, margin: 0 }}>
+          {modeInfo.title}
+        </p>
       </div>
 
-      {done && (
-        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "rgba(240,253,244,0.92)", borderRadius: 20, zIndex: 10 }}>
-          <div style={{ fontSize: 56, marginBottom: 8 }}>✨</div>
-          <p style={{ fontSize: 24, fontWeight: 800, color: "#065F46", margin: 0 }}>완벽해요!</p>
-          <p style={{ fontSize: 18, color: "#047857", margin: "8px 0 0" }}>선을 따라 잘 그으셨어요!</p>
+      {/* 평가 카드 */}
+      <div style={{
+        background: "#FFFFFF",
+        border: "3px solid #E2E8F0",
+        borderRadius: 24,
+        padding: "24px 18px",
+        margin: "20px 0",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
+      }}>
+        <div style={{ display: "inline-block", background: `${gradeColor}18`, color: gradeColor, padding: "8px 22px", borderRadius: 20, fontSize: 24, fontWeight: 900, marginBottom: 16 }}>
+          {gradeBadge}
         </div>
-      )}
+
+        <div style={{ display: "flex", justifyContent: "space-around", borderTop: "1.5px solid #F1F5F9", borderBottom: "1.5px solid #F1F5F9", padding: "14px 0", margin: "12px 0" }}>
+          <div>
+            <div style={{ fontSize: 15, color: "#64748B", fontWeight: 700 }}>총 소요 시간</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: "#1E293B", marginTop: 4 }}>{durationSec}초</div>
+          </div>
+          <div style={{ width: 1.5, background: "#E2E8F0" }} />
+          <div>
+            <div style={{ fontSize: 15, color: "#64748B", fontWeight: 700 }}>실수/오답 횟수</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: mistakes === 0 ? "#047857" : "#DC2626", marginTop: 4 }}>{mistakes}회</div>
+          </div>
+        </div>
+
+        <p style={{ fontSize: 19, lineHeight: 1.5, color: "#334155", fontWeight: 700, margin: "14px 0 0", wordBreak: "keep-all" }}>
+          {praise}
+        </p>
+      </div>
+
+      <div style={{ flex: 1, minHeight: 12 }} />
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <button
+          onClick={onRetry}
+          aria-label="다시 훈련하기"
+          style={{
+            width: "100%",
+            height: 66,
+            borderRadius: 20,
+            background: modeInfo.color,
+            color: "#FFFFFF",
+            fontSize: 20,
+            fontWeight: 800,
+            border: "none",
+            boxShadow: `0 6px 18px ${modeInfo.color}55`,
+            cursor: "pointer",
+          }}
+        >
+          🔄 한 번 더 도전하기
+        </button>
+
+        <button
+          onClick={onHome}
+          aria-label="훈련 메뉴로 가기"
+          style={{
+            width: "100%",
+            height: 62,
+            borderRadius: 20,
+            background: "#FFFFFF",
+            color: "#1E293B",
+            fontSize: 19,
+            fontWeight: 800,
+            border: "2.5px solid #CBD5E1",
+            cursor: "pointer",
+          }}
+        >
+          🏠 다른 훈련 선택하기
+        </button>
+      </div>
     </div>
   );
 }
 
+// ─── MAIN GAME CONTAINER ──────────────────────────────────────────────────────
+
 function GameScreen({ onBack }: { onBack: () => void }) {
-  const [mode, setMode] = useState<GameMode>("number");
-  const [round, setRound] = useState(0);
-  const [ttsActive, setTtsActive] = useState(false);
+  const [mode, setMode] = useState<GameMode>("menu");
+  const [level, setLevel] = useState(1);
+  const [mistakes, setMistakes] = useState(0);
+  const [startTime, setStartTime] = useState(0);
+  const [durationSec, setDurationSec] = useState(0);
+  const [isFinished, setIsFinished] = useState(false);
+  const [guideText, setGuideText] = useState("");
 
-  const resetGame = useCallback(() => setRound(r => r + 1), []);
+  const activeModeInfo = MODES.find(m => m.id === mode) || MODES[0];
 
-  const instructions: Record<GameMode, string> = {
-    number: "1부터 5까지 순서대로 눌러보세요!",
-    trace: "손가락으로 선을 따라 그어보세요!",
+  const handleStartMode = (selectedMode: GameMode) => {
+    setMode(selectedMode);
+    setLevel(1);
+    setMistakes(0);
+    setIsFinished(false);
+    setStartTime(performance.now());
+
+    // 초기 가이드 텍스트
+    if (selectedMode === "number") setGuideText("1부터 순서대로 번호를 눌러보세요!");
+    else if (selectedMode === "trace") setGuideText("파란 시작점에서 초록 도착점까지 그어보세요!");
+    else if (selectedMode === "color") setGuideText("알맞은 색상 단추를 찾아보세요!");
+    else if (selectedMode === "memory") setGuideText("불빛과 소리 순서를 잘 기억해보세요!");
+    else if (selectedMode === "match") setGuideText("같은 과일 그림 카드 짝을 맞춰보세요!");
   };
 
+  const handleLevelComplete = () => {
+    soundStageClear();
+    buzz([60, 40, 60]);
+
+    if (level < 10) {
+      setLevel(prev => prev + 1);
+    } else {
+      const elapsed = Math.round((performance.now() - startTime) / 100) / 10;
+      setDurationSec(elapsed);
+      setIsFinished(true);
+    }
+  };
+
+  const handleError = () => {
+    setMistakes(prev => prev + 1);
+  };
+
+  // 1. 메뉴 화면
+  if (mode === "menu") {
+    return (
+      <div style={{ height: "100%", overflowY: "auto", display: "flex", flexDirection: "column", background: "#FDFBF7" }}>
+        <header style={{
+          display: "flex", alignItems: "center", gap: 10, padding: "12px 16px",
+          background: "#FFFFFF", borderBottom: "2px solid #E2E8F0", position: "sticky", top: 0, zIndex: 10,
+        }}>
+          <button onClick={onBack} aria-label="메인 홈으로"
+            style={{ display: "flex", alignItems: "center", gap: 5, height: 50, paddingInline: 12, borderRadius: 14, border: "2.5px solid #D1D5DB", background: "#F9FAFB", cursor: "pointer", flexShrink: 0 }}>
+            <ChevronLeft />
+            <span style={{ fontSize: 17, fontWeight: 700, color: "#1E293B" }}>홈으로</span>
+          </button>
+          <h1 style={{ flex: 1, fontSize: 20, fontWeight: 900, color: "#1E293B", margin: 0, textAlign: "center" }}>
+            두뇌 &amp; 손가락 운동 🧠
+          </h1>
+          <div style={{ width: 65 }} />
+        </header>
+
+        <div style={{ padding: "18px 18px 8px", textAlign: "center" }}>
+          <div style={{ display: "inline-block", background: "#FEF3C7", color: "#92400E", border: "2px solid #FCD34D", borderRadius: 20, padding: "5px 16px", fontSize: 15, fontWeight: 800, marginBottom: 8 }}>
+            10단계 맞춤형 두뇌 감각 활성화
+          </div>
+          <p style={{ fontSize: 22, fontWeight: 800, color: "#1E293B", margin: 0 }}>
+            오늘 하실 훈련을 골라보세요 👇
+          </p>
+        </div>
+
+        <div style={{ padding: "10px 18px 24px", display: "flex", flexDirection: "column", gap: 12 }}>
+          {MODES.map((m) => (
+            <button
+              key={m.id}
+              onClick={() => handleStartMode(m.id)}
+              aria-label={m.title}
+              style={{
+                borderRadius: 22,
+                border: `2.5px solid ${m.color}33`,
+                borderLeft: `8px solid ${m.color}`,
+                background: "#FFFFFF",
+                padding: "16px 18px",
+                display: "flex",
+                alignItems: "center",
+                gap: 14,
+                cursor: "pointer",
+                boxShadow: "0 4px 14px rgba(0,0,0,0.06)",
+                textAlign: "left",
+                transition: "transform 0.15s",
+              }}
+              onMouseDown={(e) => { e.currentTarget.style.transform = "scale(0.98)"; }}
+              onMouseUp={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
+            >
+              <div style={{ fontSize: 34, width: 48, height: 48, borderRadius: 16, background: m.bgLight, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                {m.icon}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "inline-block", background: `${m.color}15`, color: m.color, fontSize: 12, fontWeight: 800, padding: "2px 8px", borderRadius: 8, marginBottom: 4 }}>
+                  {m.badge}
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: "#1E293B" }}>{m.title}</div>
+                <div style={{ fontSize: 14, color: "#64748B", marginTop: 2, fontWeight: 500 }}>{m.desc}</div>
+              </div>
+              <span style={{ fontSize: 22, color: m.color, fontWeight: 900 }}>▶</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // 2. 결과 리포트 화면
+  if (isFinished) {
+    return (
+      <ResultView
+        modeInfo={activeModeInfo}
+        durationSec={durationSec}
+        mistakes={mistakes}
+        onRetry={() => handleStartMode(mode)}
+        onHome={() => setMode("menu")}
+      />
+    );
+  }
+
+  // 3. 실제 게임 진행 화면
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "#F8FAFC" }}>
-
-      {/* ── Header ── */}
+      {/* ── Top Header ── */}
       <header style={{
-        display: "flex", alignItems: "center", gap: 10, padding: "12px 16px",
+        display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px",
         background: "#FFFFFF", borderBottom: "2px solid #E2E8F0", flexShrink: 0,
       }}>
-        <button onClick={onBack} aria-label="뒤로 가기"
-          style={{ display: "flex", alignItems: "center", gap: 5, height: 52, paddingInline: 12, borderRadius: 14, border: "2.5px solid #D1D5DB", background: "#F9FAFB", cursor: "pointer", flexShrink: 0 }}>
+        <button onClick={() => setMode("menu")} aria-label="메뉴로 돌아가기"
+          style={{ display: "flex", alignItems: "center", gap: 4, height: 46, paddingInline: 12, borderRadius: 14, border: "2px solid #D1D5DB", background: "#F9FAFB", cursor: "pointer" }}>
           <ChevronLeft />
-          <span style={{ fontSize: 17, fontWeight: 700, color: "#1E293B" }}>뒤로</span>
+          <span style={{ fontSize: 16, fontWeight: 700, color: "#1E293B" }}>목록</span>
         </button>
 
-        <h1 style={{ flex: 1, fontSize: 22, fontWeight: 800, color: "#1E293B", margin: 0, textAlign: "center" }}>
-          두뇌 &amp; 손가락 운동 🧠
-        </h1>
+        {/* Level badge */}
+        <div style={{
+          background: "#FEF3C7", color: "#92400E", border: "2px solid #D97706",
+          fontSize: 17, fontWeight: 800, padding: "4px 14px", borderRadius: 18,
+        }}>
+          {level}단계 / 10단계
+        </div>
 
-        <button onClick={() => setTtsActive(p => !p)} aria-label="소리 안내"
-          style={{ width: 52, height: 52, borderRadius: 14, border: `2.5px solid ${ttsActive ? "#3B82F6" : "#D1D5DB"}`, background: ttsActive ? "#EFF6FF" : "#F9FAFB", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
-          <VolumeIcon color={ttsActive ? "#2563EB" : "#475569"} size={24} />
+        <button onClick={() => playTone(440, "sine", 0.2)} aria-label="효과음 테스트"
+          style={{ width: 46, height: 46, borderRadius: 14, border: "2px solid #D1D5DB", background: "#F9FAFB", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+          <VolumeIcon color="#2563EB" size={22} />
         </button>
       </header>
 
-      {/* ── Mode selector ── */}
-      <div style={{ padding: "14px 16px 0", display: "flex", flexDirection: "column", gap: 10, flexShrink: 0 }}>
-        <button onClick={() => { setMode("number"); resetGame(); }} aria-label="숫자 순서대로 누르기"
-          style={{
-            height: 66, borderRadius: 16, border: "none", cursor: "pointer",
-            background: mode === "number" ? "#2563EB" : "#EFF6FF",
-            display: "flex", alignItems: "center", paddingInline: 20, gap: 14,
-            boxShadow: mode === "number" ? "0 4px 16px rgba(37,99,235,0.38)" : "0 2px 8px rgba(0,0,0,0.06)",
-            transition: "all 0.18s",
-          }}>
-          <span style={{ fontSize: 28 }}>🔢</span>
-          <span style={{ fontSize: 19, fontWeight: 700, color: mode === "number" ? "#FFFFFF" : "#1E40AF" }}>
-            1. 숫자 순서대로 누르기 (1 to 5)
-          </span>
-          {mode === "number" && <span style={{ marginLeft: "auto", fontSize: 18, color: "white" }}>▶</span>}
-        </button>
-
-        <button onClick={() => { setMode("trace"); resetGame(); }} aria-label="선 따라 긋기"
-          style={{
-            height: 66, borderRadius: 16, border: "none", cursor: "pointer",
-            background: mode === "trace" ? "#059669" : "#ECFDF5",
-            display: "flex", alignItems: "center", paddingInline: 20, gap: 14,
-            boxShadow: mode === "trace" ? "0 4px 16px rgba(5,150,105,0.38)" : "0 2px 8px rgba(0,0,0,0.06)",
-            transition: "all 0.18s",
-          }}>
-          <span style={{ fontSize: 28 }}>✏️</span>
-          <span style={{ fontSize: 19, fontWeight: 700, color: mode === "trace" ? "#FFFFFF" : "#065F46" }}>
-            2. 선 따라 긋기 (Trace the Line)
-          </span>
-          {mode === "trace" && <span style={{ marginLeft: "auto", fontSize: 18, color: "white" }}>▶</span>}
-        </button>
-      </div>
-
-      {/* ── Instruction banner ── */}
-      <div style={{ padding: "12px 16px 0", flexShrink: 0 }}>
+      {/* ── Guide banner ── */}
+      <div style={{ padding: "10px 16px 0", flexShrink: 0 }}>
         <div style={{
-          background: "#F1F5F9", border: "2px solid #CBD5E1", borderRadius: 14,
-          padding: "12px 16px", display: "flex", alignItems: "center", gap: 10,
+          background: "#FFFFFF", border: "2.5px solid #CBD5E1", borderRadius: 16,
+          padding: "10px 16px", display: "flex", alignItems: "center", gap: 10,
+          boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
         }}>
-          <span style={{ fontSize: 22 }}>👉</span>
-          <span style={{ fontSize: 19, fontWeight: 700, color: "#475569" }}>{instructions[mode]}</span>
+          <span style={{ fontSize: 24 }}>👉</span>
+          <span style={{ fontSize: 18, fontWeight: 800, color: "#1E293B", lineHeight: 1.3, wordBreak: "keep-all" }}>
+            {guideText || activeModeInfo.desc}
+          </span>
         </div>
       </div>
 
-      {/* ── Game canvas ── */}
-      <div style={{ flex: 1, padding: "12px 16px 0", minHeight: 0 }}>
+      {/* ── Game Area ── */}
+      <div style={{ flex: 1, padding: "10px 16px 0", minHeight: 0 }}>
         <div style={{
           width: "100%", height: "100%",
           background: "#FFFFFF", borderRadius: 24,
-          border: "2px solid #E2E8F0",
-          boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
+          border: "2.5px solid #E2E8F0",
+          boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
           overflow: "hidden", position: "relative",
         }}>
-          {mode === "number"
-            ? <NumberGame key={`num-${round}`} onComplete={resetGame} />
-            : <TraceGame key={`trace-${round}`} onComplete={resetGame} />
-          }
+          {mode === "number" && <NumberMode key={`num-${level}`} level={level} onLevelComplete={handleLevelComplete} onError={handleError} />}
+          {mode === "trace" && <TraceMode key={`trace-${level}`} level={level} onLevelComplete={handleLevelComplete} onError={handleError} />}
+          {mode === "color" && <ColorMode key={`color-${level}`} level={level} onLevelComplete={handleLevelComplete} onError={handleError} setGuideText={setGuideText} />}
+          {mode === "memory" && <MemoryMode key={`mem-${level}`} level={level} onLevelComplete={handleLevelComplete} onError={handleError} setGuideText={setGuideText} />}
+          {mode === "match" && <MatchMode key={`match-${level}`} level={level} onLevelComplete={handleLevelComplete} onError={handleError} />}
         </div>
       </div>
 
-      {/* ── Reassurance bar ── */}
-      <div style={{ padding: "12px 16px 16px", flexShrink: 0 }}>
+      {/* ── Bottom Reassurance Banner ── */}
+      <div style={{ padding: "10px 16px 14px", flexShrink: 0 }}>
         <div style={{
-          background: "#FEF3C7", border: "2px solid #FCD34D", borderRadius: 18,
-          padding: "14px 18px", display: "flex", alignItems: "center", gap: 12,
+          background: "#FEF3C7", border: "2px solid #FCD34D", borderRadius: 16,
+          padding: "10px 14px", display: "flex", alignItems: "center", gap: 10,
         }}>
-          <span style={{ fontSize: 26, flexShrink: 0 }}>😊</span>
-          <p style={{ fontSize: 18, fontWeight: 600, color: "#92400E", margin: 0, lineHeight: 1.4 }}>
-            실수해도 괜찮아요! 천천히 눌러보세요
+          <span style={{ fontSize: 22, flexShrink: 0 }}>😊</span>
+          <p style={{ fontSize: 16, fontWeight: 700, color: "#92400E", margin: 0, lineHeight: 1.3 }}>
+            실수해도 괜찮아요! 편안하게 천천히 눌러보세요
           </p>
         </div>
       </div>
@@ -643,7 +1282,7 @@ function GameScreen({ onBack }: { onBack: () => void }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// ─── App shell ────────────────────────────────────────────────────────────────
+// ─── App Shell ────────────────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 
 type Screen = "home" | "guide" | "game";
