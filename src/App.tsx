@@ -182,38 +182,26 @@ function StepCard({ number, children, accent }: { number: number; children: Reac
 
 function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () => void }) {
   const [childType, setChildType] = useState<"boy" | "girl">("boy");
+  const [playKey, setPlayKey] = useState(0);
+  const [showBubble, setShowBubble] = useState(true);
   const [weatherSelected, setWeatherSelected] = useState<"sunny" | "cloudy" | null>(null);
-  const [ttsPlaying, setTtsPlaying] = useState(false);
 
-  const handleSpeakGreeting = () => {
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      if (ttsPlaying) {
-        window.speechSynthesis.cancel();
-        setTtsPlaying(false);
-        return;
-      }
+  // 3초 동안 말풍선 표시 후 자동 제거
+  useEffect(() => {
+    setShowBubble(true);
+    const timer = setTimeout(() => {
+      setShowBubble(false);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [childType, playKey]);
 
-      const text = childType === "boy"
-        ? "영희 어르신, 밤새 편안히 주무셨어요? 오늘 바깥공기가 쌀쌀하니 따뜻한 물 한 잔 챙겨 드세요. 손자가 응원합니다!"
-        : "영희 어르신, 밤새 푹 주무셨어요? 오늘 날씨가 쌀쌀하니까 옷 따뜻하게 챙겨 입으세요! 손녀가 사랑합니다!";
-
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = "ko-KR";
-      utterance.rate = 0.88;
-      utterance.pitch = childType === "boy" ? 1.05 : 1.25;
-      utterance.onstart = () => setTtsPlaying(true);
-      utterance.onend = () => setTtsPlaying(false);
-      utterance.onerror = () => setTtsPlaying(false);
-      window.speechSynthesis.speak(utterance);
-    } else {
-      setTtsPlaying(p => !p);
-    }
+  const restartAnimation = () => {
+    setPlayKey(prev => prev + 1);
   };
 
   return (
-    <div style={{ height: "100%", overflowY: "auto", display: "flex", flexDirection: "column" }}>
-      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 22px", borderBottom: "1.5px solid #E5E7EB", background: "#FFFFFF" }}>
+    <div style={{ height: "100%", overflowY: "auto", display: "flex", flexDirection: "column", background: "#F8FAFC" }}>
+      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 22px", borderBottom: "1.5px solid #E5E7EB", background: "#FFFFFF", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 22, fontWeight: 700, color: "#1A1A1A" }}>오전 8:30</span>
           <SunIcon />
@@ -227,16 +215,16 @@ function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () =
             }
           }}
           aria-label="소리 조절"
-          style={{ width: 54, height: 54, borderRadius: 16, background: "#F3F4F6", border: "2px solid #D1D5DB", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
+          style={{ width: 52, height: 52, borderRadius: 16, background: "#F3F4F6", border: "2px solid #D1D5DB", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
         >
           <VolumeIcon />
         </button>
       </header>
 
       {/* 손자 / 손녀 선택 탭 버튼 */}
-      <div style={{ padding: "14px 22px 0", display: "flex", gap: 10 }}>
+      <div style={{ padding: "12px 20px 0", display: "flex", gap: 10, flexShrink: 0 }}>
         <button
-          onClick={() => { setChildType("boy"); if (ttsPlaying) window.speechSynthesis?.cancel(); }}
+          onClick={() => setChildType("boy")}
           aria-label="손자 모드 선택"
           style={{
             flex: 1,
@@ -252,16 +240,16 @@ function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () =
             justifyContent: "center",
             gap: 8,
             cursor: "pointer",
-            boxShadow: childType === "boy" ? "0 4px 12px rgba(37,99,235,0.2)" : "none",
+            boxShadow: childType === "boy" ? "0 4px 12px rgba(37,99,235,0.25)" : "none",
             transition: "all 0.15s ease",
           }}
         >
-          <span style={{ fontSize: 22 }}>👦</span>
+          <span style={{ fontSize: 24 }}>👦</span>
           <span>손자 모드</span>
         </button>
 
         <button
-          onClick={() => { setChildType("girl"); if (ttsPlaying) window.speechSynthesis?.cancel(); }}
+          onClick={() => setChildType("girl")}
           aria-label="손녀 모드 선택"
           style={{
             flex: 1,
@@ -277,108 +265,130 @@ function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () =
             justifyContent: "center",
             gap: 8,
             cursor: "pointer",
-            boxShadow: childType === "girl" ? "0 4px 12px rgba(236,72,153,0.2)" : "none",
+            boxShadow: childType === "girl" ? "0 4px 12px rgba(236,72,153,0.25)" : "none",
             transition: "all 0.15s ease",
           }}
         >
-          <span style={{ fontSize: 22 }}>👧</span>
+          <span style={{ fontSize: 24 }}>👧</span>
           <span>손녀 모드</span>
         </button>
       </div>
 
-      {/* 캐릭터 GIF 애니메이션 재생 영역 */}
-      <div style={{ padding: "12px 22px 0" }}>
-        <div style={{
-          background: childType === "boy"
-            ? "linear-gradient(145deg, #EFF6FF, #DBEAFE)"
-            : "linear-gradient(145deg, #FFF1F2, #FCE7F3)",
-          borderRadius: 28,
-          border: `2px solid ${childType === "boy" ? "#BFDBFE" : "#FBCFE8"}`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "10px",
-          minHeight: 180,
-          boxShadow: "0 6px 18px rgba(0,0,0,0.05)",
-          position: "relative",
-          overflow: "hidden",
-        }}>
+      {/* 캐릭터 영상 플레이 영역 (5회 반복 후 마지막 장면 정지 & 3초 말풍선 오버레이) */}
+      <div style={{ padding: "12px 20px 0", flex: "1 1 auto", display: "flex", flexDirection: "column", minHeight: 0 }}>
+        <div
+          onClick={restartAnimation}
+          title="터치하면 다시 인사합니다"
+          style={{
+            background: childType === "boy"
+              ? "linear-gradient(160deg, #EFF6FF 0%, #DBEAFE 100%)"
+              : "linear-gradient(160deg, #FFF1F2 0%, #FCE7F3 100%)",
+            borderRadius: 30,
+            border: `2.5px solid ${childType === "boy" ? "#BFDBFE" : "#FBCFE8"}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "12px",
+            height: "100%",
+            minHeight: 280,
+            maxHeight: 340,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
+            position: "relative",
+            overflow: "hidden",
+            cursor: "pointer",
+          }}
+        >
+          {/* 3초 동안 나타나는 말풍선 */}
+          {showBubble && (
+            <div style={{
+              position: "absolute",
+              top: 16,
+              left: "50%",
+              transform: "translateX(-50%)",
+              background: "#FFFFFF",
+              border: `2.5px solid ${childType === "boy" ? "#2563EB" : "#EC4899"}`,
+              borderRadius: 20,
+              padding: "10px 18px",
+              boxShadow: "0 8px 22px rgba(0,0,0,0.15)",
+              zIndex: 10,
+              whiteSpace: "nowrap",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              animation: "fadeIn 0.2s ease-out",
+            }}>
+              <span style={{ fontSize: 20 }}>💖</span>
+              <span style={{
+                fontSize: 18,
+                fontWeight: 900,
+                color: childType === "boy" ? "#1D4ED8" : "#BE185D",
+              }}>
+                할머니 할아버지 안녕하세요!
+              </span>
+              {/* 말풍선 꼬리 */}
+              <div style={{
+                position: "absolute",
+                bottom: -9,
+                left: "50%",
+                transform: "translateX(-50%)",
+                width: 0,
+                height: 0,
+                borderLeft: "8px solid transparent",
+                borderRight: "8px solid transparent",
+                borderTop: `9px solid ${childType === "boy" ? "#2563EB" : "#EC4899"}`,
+              }} />
+            </div>
+          )}
+
+          {/* GIF 이미지 (5회 루프 재생 후 마지막 프레임 정지) */}
           <img
-            key={childType}
+            key={`${childType}-${playKey}`}
             src={childType === "boy" ? sonjaGif : songirlGif}
-            alt={childType === "boy" ? "밝게 웃는 손자 애니메이션" : "밝게 웃는 손녀 애니메이션"}
+            alt={childType === "boy" ? "손자 인사 영상" : "손녀 인사 영상"}
             style={{
               width: "100%",
-              maxHeight: 180,
+              height: "100%",
               objectFit: "contain",
-              borderRadius: 20,
+              borderRadius: 22,
             }}
             onError={(e) => {
-              // 이미지 로딩 실패 시 일러스트로 대체
               e.currentTarget.style.display = "none";
             }}
           />
-        </div>
-      </div>
 
-      {/* 말풍선 안내 영역 */}
-      <div style={{ padding: "14px 22px 0" }}>
-        <div style={{
-          background: "#F0FDF4",
-          border: "2.5px solid #86EFAC",
-          borderRadius: 24,
-          padding: "18px 20px 16px",
-          position: "relative",
-        }}>
-          <div style={{ position: "absolute", top: -14, left: 40, width: 0, height: 0, borderLeft: "12px solid transparent", borderRight: "12px solid transparent", borderBottom: "14px solid #86EFAC" }} />
-          <div style={{ position: "absolute", top: -11, left: 41, width: 0, height: 0, borderLeft: "11px solid transparent", borderRight: "11px solid transparent", borderBottom: "13px solid #F0FDF4" }} />
-          
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 800, background: childType === "boy" ? "#DBEAFE" : "#FCE7F3", color: childType === "boy" ? "#1D4ED8" : "#DB2777", padding: "2px 8px", borderRadius: 8 }}>
-              {childType === "boy" ? "👦 손자의 아침 인사" : "👧 손녀의 아침 인사"}
-            </span>
+          {/* 리플레이 힌트 뱃지 */}
+          <div style={{
+            position: "absolute",
+            bottom: 10,
+            right: 14,
+            background: "rgba(255, 255, 255, 0.85)",
+            backdropFilter: "blur(4px)",
+            padding: "4px 10px",
+            borderRadius: 12,
+            fontSize: 12,
+            fontWeight: 700,
+            color: "#64748B",
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            border: "1px solid rgba(0,0,0,0.06)",
+          }}>
+            <span>🔄</span> 터치 시 다시 인사
           </div>
-
-          <p style={{ fontSize: 21, fontWeight: 800, color: "#1A1A1A", lineHeight: 1.45, margin: 0, marginBottom: 8 }}>
-            영희 어르신, 밤새 편안히<br />주무셨어요?
-          </p>
-          <p style={{ fontSize: 18, color: "#374151", lineHeight: 1.5, margin: 0, marginBottom: 14 }}>
-            오늘 바깥공기가 쌀쌀하니<br />따뜻한 물 한 잔 챙겨 드세요.
-          </p>
-          
-          <button
-            onClick={handleSpeakGreeting}
-            aria-label="소리로 듣기"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              background: ttsPlaying ? "#DCFCE7" : "#FFFFFF",
-              border: "2px solid #2E7D32",
-              borderRadius: 14,
-              padding: "10px 16px",
-              cursor: "pointer",
-            }}
-          >
-            <SpeakerIcon />
-            <span style={{ fontSize: 17, fontWeight: 800, color: "#2E7D32" }}>
-              {ttsPlaying ? "목소리 나오는 중..." : "소리로 듣기 🔊"}
-            </span>
-          </button>
         </div>
       </div>
 
       {/* 날씨 질문 */}
-      <div style={{ padding: "14px 22px 0", display: "flex", flexDirection: "column", gap: 8 }}>
-        <p style={{ fontSize: 16, fontWeight: 800, color: "#6B7280", margin: 0, marginBottom: 2 }}>오늘 날씨가 어때요?</p>
+      <div style={{ padding: "12px 20px 0", display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
+        <p style={{ fontSize: 16, fontWeight: 800, color: "#6B7280", margin: 0 }}>오늘 날씨가 어때요?</p>
         <div style={{ display: "flex", gap: 10 }}>
           <button
             onClick={() => setWeatherSelected("sunny")}
             aria-label="창밖이 맑아요"
             style={{
               flex: 1,
-              height: 60,
-              borderRadius: 18,
+              height: 54,
+              borderRadius: 16,
               border: weatherSelected === "sunny" ? "3px solid #D97706" : "2px solid #FCD34D",
               background: weatherSelected === "sunny" ? "#FFFBEB" : "#FFFFFF",
               display: "flex",
@@ -388,16 +398,16 @@ function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () =
               cursor: "pointer",
             }}
           >
-            <span style={{ fontSize: 24 }}>☀️</span>
-            <span style={{ fontSize: 18, fontWeight: 800, color: "#92400E" }}>맑아요</span>
+            <span style={{ fontSize: 22 }}>☀️</span>
+            <span style={{ fontSize: 17, fontWeight: 800, color: "#92400E" }}>창밖이 맑아요</span>
           </button>
           <button
             onClick={() => setWeatherSelected("cloudy")}
             aria-label="조금 흐려요"
             style={{
               flex: 1,
-              height: 60,
-              borderRadius: 18,
+              height: 54,
+              borderRadius: 16,
               border: weatherSelected === "cloudy" ? "3px solid #6B7280" : "2px solid #CBD5E1",
               background: weatherSelected === "cloudy" ? "#F1F5F9" : "#FFFFFF",
               display: "flex",
@@ -407,22 +417,22 @@ function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () =
               cursor: "pointer",
             }}
           >
-            <span style={{ fontSize: 24 }}>☁️</span>
-            <span style={{ fontSize: 18, fontWeight: 800, color: "#374151" }}>흐려요</span>
+            <span style={{ fontSize: 22 }}>☁️</span>
+            <span style={{ fontSize: 17, fontWeight: 800, color: "#374151" }}>조금 흐려요</span>
           </button>
         </div>
       </div>
 
-      <div style={{ flex: 1, minHeight: 14 }} />
+      <div style={{ minHeight: 12, flexShrink: 0 }} />
 
       {/* 메인 기능 바로가기 버튼 */}
-      <div style={{ padding: "0 22px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ padding: "0 20px 20px", display: "flex", flexDirection: "column", gap: 10, flexShrink: 0 }}>
         <button
           onClick={onGame}
           aria-label="두뇌 손가락 운동"
           style={{
             width: "100%",
-            height: 66,
+            height: 64,
             borderRadius: 20,
             background: "linear-gradient(135deg, #7C3AED, #6D28D9)",
             border: "none",
@@ -443,7 +453,7 @@ function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () =
           aria-label="가전제품 사진 찍어 물어보기"
           style={{
             width: "100%",
-            height: 66,
+            height: 64,
             borderRadius: 20,
             background: "linear-gradient(135deg, #2E7D32, #388E3C)",
             border: "none",
@@ -462,6 +472,7 @@ function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () =
     </div>
   );
 }
+
 
 
 // ══════════════════════════════════════════════════════════════════════════════
