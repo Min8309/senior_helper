@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import sonjaGif from "../img/sonja.gif";
-import songirlGif from "../img/songirl.gif";
+import boyVideo from "../img/01.mp4";
+import girlVideo from "../img/02.mp4";
 
 // ─── Shared icons ─────────────────────────────────────────────────────────────
 
@@ -185,7 +185,7 @@ function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () =
   const [playKey, setPlayKey] = useState(0);
   const [ttsPlaying, setTtsPlaying] = useState(false);
 
-  // 손자 / 손녀 음성 낭독
+  // 손자 / 손녀 음성 낭독 (상단 스피커 아이콘 탭 시)
   const handleSpeakGreeting = useCallback(() => {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       if (ttsPlaying) {
@@ -214,7 +214,6 @@ function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () =
 
   const restartAnimation = () => {
     setPlayKey(prev => prev + 1);
-    handleSpeakGreeting();
   };
 
   return (
@@ -230,7 +229,7 @@ function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () =
             </span>
             <button
               onClick={handleSpeakGreeting}
-              aria-label="안내 음성 다시 듣기"
+              aria-label="안내 음성 듣기"
               style={{
                 width: 52,
                 height: 52,
@@ -336,43 +335,46 @@ function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () =
           </button>
         </div>
 
-        {/* ── 4. AI 캐릭터 영역 & 말풍선 / 다시듣기 ── */}
+        {/* ── 4. AI 캐릭터 영상 (01.mp4 / 02.mp4) & 말풍선 ── */}
         <div style={{ padding: "14px 20px 0", flexShrink: 0 }}>
           <div style={{
             background: "#FFF9ED",
             border: "2px solid #D9DEDA",
             borderRadius: 24,
-            padding: "16px 16px 14px",
+            padding: "16px 16px 16px",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
             boxShadow: "0 4px 16px rgba(30,50,40,0.06)",
           }}>
-            {/* 캐릭터 GIF (5회 루프 후 정지, 탭 시 리플레이) */}
+            {/* 캐릭터 영상 플레이 영역 (01.mp4 / 02.mp4 재생) */}
             <div
               onClick={restartAnimation}
-              title="터치하시면 다시 인사합니다"
+              title="터치하시면 영상을 다시 재생합니다"
               style={{
                 width: "100%",
-                height: 190,
+                height: 200,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 cursor: "pointer",
+                borderRadius: 18,
+                overflow: "hidden",
+                background: "transparent",
               }}
             >
-              <img
+              <video
                 key={`${childType}-${playKey}`}
-                src={childType === "boy" ? sonjaGif : songirlGif}
-                alt={childType === "boy" ? "손자 캐릭터" : "손녀 캐릭터"}
+                src={childType === "boy" ? boyVideo : girlVideo}
+                autoPlay
+                playsInline
+                muted
+                loop
                 style={{
                   maxHeight: "100%",
                   maxWidth: "100%",
                   objectFit: "contain",
                   borderRadius: 18,
-                }}
-                onError={(e) => {
-                  e.currentTarget.style.display = "none";
                 }}
               />
             </div>
@@ -384,7 +386,7 @@ function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () =
               border: "2px solid #D9DEDA",
               borderRadius: 18,
               padding: "12px 16px",
-              marginTop: 10,
+              marginTop: 12,
               boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
               position: "relative",
             }}>
@@ -394,31 +396,6 @@ function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () =
                   : "“할머니, 오늘 날씨 참 좋아요! 같이 5분 두뇌 운동해요 💖”"}
               </p>
             </div>
-
-            {/* 다시 듣기 버튼 */}
-            <button
-              onClick={handleSpeakGreeting}
-              aria-label="목소리 다시 듣기"
-              style={{
-                marginTop: 10,
-                height: 48,
-                paddingInline: 20,
-                borderRadius: 14,
-                background: "#FFFFFF",
-                border: "2px solid #26734D",
-                color: "#26734D",
-                fontSize: 17,
-                fontWeight: 800,
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                cursor: "pointer",
-                boxShadow: "0 2px 6px rgba(38,115,77,0.1)",
-              }}
-            >
-              <SpeakerIcon color="#26734D" />
-              <span>{ttsPlaying ? "목소리 나오는 중..." : "🔊 다시 듣기"}</span>
-            </button>
           </div>
         </div>
 
@@ -572,9 +549,6 @@ function GreetingScreen({ onGuide, onGame }: { onGuide: () => void; onGame: () =
     </div>
   );
 }
-
-
-
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ─── SCREEN 2: Guide ──────────────────────────────────────────────────────────
