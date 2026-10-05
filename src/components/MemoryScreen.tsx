@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { MemoryItem, CharacterMode } from "../types/memory";
-import { memoryStorage } from "../services/memoryStorage";
+import { getMemories, updateMemory, deleteMemory } from "../services/memoryService";
 import { MemoryRecordModal } from "./MemoryRecordModal";
 import { BottomNavBar } from "./BottomNavBar";
 
@@ -20,6 +20,7 @@ export function MemoryScreen({
   characterMode = "boy",
 }: MemoryScreenProps) {
   const [memories, setMemories] = useState<MemoryItem[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [selectedMemory, setSelectedMemory] = useState<MemoryItem | null>(null);
   const [filterMode, setFilterMode] = useState<"recent" | "byDate">("recent");
   const [searchKeyword, setSearchKeyword] = useState("");
@@ -38,10 +39,17 @@ export function MemoryScreen({
   // 상세 보기 내 삭제 확인
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // 기억 목록 불러오기
-  const loadMemories = () => {
-    const list = memoryStorage.getMemories();
-    setMemories(list);
+  // 기억 목록 불러오기 (Supabase 최신순 created_at DESC + 로컬 동기화)
+  const loadMemories = async () => {
+    setIsLoading(true);
+    try {
+      const list = await getMemories();
+      setMemories(list);
+    } catch (err) {
+      console.warn("기억 목록 불러오기 오류:", err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -159,11 +167,11 @@ export function MemoryScreen({
   };
 
   // 상세 내 내용 수정 저장
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!selectedMemory || !editText.trim()) return;
     const updatedText = editText.trim();
 
-    memoryStorage.updateMemory(selectedMemory.id, {
+    await updateMemory(selectedMemory.id, {
       display_text: updatedText,
       summary: updatedText,
       original_text: updatedText,
@@ -179,10 +187,10 @@ export function MemoryScreen({
     loadMemories();
   };
 
-  // 기억 삭제
-  const handleDelete = () => {
+  // 기억 삭제 (Supabase 및 로컬 영구 삭제)
+  const handleDelete = async () => {
     if (!selectedMemory) return;
-    memoryStorage.deleteMemory(selectedMemory.id);
+    await deleteMemory(selectedMemory.id);
     handleCloseDetail();
   };
 

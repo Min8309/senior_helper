@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { CharacterMode } from "../types/memory";
 import { recordVoice, stopRecording, cancelRecording } from "../services/voiceRecordService";
-import { saveMemory, formatDisplayText, generateMemoryTitle } from "../services/memoryStorage";
+import { formatDisplayText, generateMemoryTitle } from "../services/memoryStorage";
+import { saveMemory as saveMemoryToService } from "../services/memoryService";
 
 interface MemoryRecordModalProps {
   isOpen: boolean;
@@ -50,6 +51,7 @@ export function MemoryRecordModal({
 
   // 글 작성용 상태
   const [manualText, setManualText] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   const timerRef = useRef<any>(null);
 
@@ -158,11 +160,12 @@ export function MemoryRecordModal({
     }
   };
 
-  // 기억 저장 실행 (Requirement 7)
-  const handleSave = (type: "voice" | "text", rawInput: string) => {
+  // 기억 저장 실행 (Supabase DB + Storage 및 로컬 동기화)
+  const handleSave = async (type: "voice" | "text", rawInput: string) => {
     const trimmed = rawInput.trim();
-    if (!trimmed) return;
+    if (!trimmed || isSaving) return;
 
+    setIsSaving(true);
     const dateStr = today.toISOString().split("T")[0];
     const month = today.getMonth() + 1;
     const date = today.getDate();
@@ -173,19 +176,24 @@ export function MemoryRecordModal({
     const title = generateMemoryTitle(trimmed);
     const formattedDisplay = formatDisplayText(trimmed);
 
-    // Requirement 7 저장 형식
-    saveMemory({
-      date: dateStr,
-      date_label: dateLabel,
-      title,
-      question: currentQuestion,
-      input_type: type,
-      original_text: trimmed,
-      display_text: formattedDisplay,
-      summary: formattedDisplay,
-      character_mode: isGirl ? "granddaughter" : "grandson",
-      audio_data_url: type === "voice" ? audioDataUrl : undefined,
-    });
+    try {
+      await saveMemoryToService({
+        date: dateStr,
+        date_label: dateLabel,
+        title,
+        question: currentQuestion,
+        input_type: type,
+        original_text: trimmed,
+        display_text: formattedDisplay,
+        summary: formattedDisplay,
+        character_mode: isGirl ? "granddaughter" : "grandson",
+        audio_data_url: type === "voice" ? audioDataUrl : undefined,
+      });
+    } catch (err) {
+      console.warn("기억 저장 처리:", err);
+    } finally {
+      setIsSaving(false);
+    }
 
     if (previewAudioRef.current) {
       previewAudioRef.current.pause();
@@ -751,13 +759,13 @@ export function MemoryRecordModal({
                 {/* 1. [ 💾 기억에 저장 ] (Primary, 가장 큼) */}
                 <button
                   onClick={() => handleSave("voice", confirmedText)}
-                  disabled={!confirmedText.trim()}
+                  disabled={!confirmedText.trim() || isSaving}
                   aria-label="기억에 저장"
                   style={{
                     width: "100%",
                     minHeight: 66,
                     borderRadius: 18,
-                    background: "#26734D",
+                    background: isSaving ? "#626A6E" : "#26734D",
                     border: "none",
                     color: "#FFFFFF",
                     fontSize: 20,
@@ -766,12 +774,12 @@ export function MemoryRecordModal({
                     alignItems: "center",
                     justifyContent: "center",
                     gap: 10,
-                    cursor: "pointer",
+                    cursor: isSaving ? "wait" : "pointer",
                     boxShadow: "0 6px 18px rgba(38,115,77,0.28)",
                   }}
                 >
-                  <span style={{ fontSize: 22 }}>💾</span>
-                  <span>기억에 저장</span>
+                  <span style={{ fontSize: 22 }}>{isSaving ? "⏳" : "💾"}</span>
+                  <span>{isSaving ? "안전하게 저장 중..." : "기억에 저장"}</span>
                 </button>
 
                 {/* 2. [ 🎤 다시 말하기 ] & 3. [ ✏️ 내용 고치기 ] */}
@@ -868,13 +876,17 @@ export function MemoryRecordModal({
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <button
                   onClick={() => handleSave("text", manualText)}
-                  disabled={!manualText.trim()}
+                  disabled={!manualText.trim() || isSaving}
                   aria-label="기억에 저장"
                   style={{
                     width: "100%",
                     minHeight: 66,
                     borderRadius: 18,
-                    background: manualText.trim() ? "#26734D" : "#CBD5E1",
+                    background: isSaving
+                      ? "#626A6E"
+                      : manualText.trim()
+                      ? "#26734D"
+                      : "#CBD5E1",
                     border: "none",
                     color: "#FFFFFF",
                     fontSize: 20,
@@ -883,12 +895,12 @@ export function MemoryRecordModal({
                     alignItems: "center",
                     justifyContent: "center",
                     gap: 10,
-                    cursor: manualText.trim() ? "pointer" : "not-allowed",
-                    boxShadow: manualText.trim() ? "0 6px 18px rgba(38,115,77,0.28)" : "none",
+                    cursor: manualText.trim() && !isSaving ? "pointer" : "not-allowed",
+                    boxShadow: manualText.trim() && !isSaving ? "0 6px 18px rgba(38,115,77,0.28)" : "none",
                   }}
                 >
-                  <span style={{ fontSize: 22 }}>💾</span>
-                  <span>기억에 저장</span>
+                  <span style={{ fontSize: 22 }}>{isSaving ? "⏳" : "💾"}</span>
+                  <span>{isSaving ? "안전하게 저장 중..." : "기억에 저장"}</span>
                 </button>
 
                 <button

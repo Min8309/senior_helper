@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { getAiGrandchildAnswer, AiAnswerResult } from "../services/aiGrandchild";
+import { saveConversation } from "../services/conversationService";
 
 interface AiAskCardProps {
   childType: "boy" | "girl";
@@ -49,13 +50,20 @@ export function AiAskCard({ childType, onOpenGuide }: AiAskCardProps) {
     }
   }, [childType]);
 
-  // 질문 처리 및 AI 답변 생성
+  // 질문 처리 및 AI 답변 생성 (Requirement 8: Supabase ai_conversations 대화 기록 저장)
   const handleProcessQuestion = (question: string) => {
     setIsListening(false);
     setUserQuery(question);
     const result = getAiGrandchildAnswer(question, childType);
     setAiResult(result);
     speakAnswer(result.answer);
+
+    // AI 대화 로그 비동기 저장
+    saveConversation({
+      characterMode: childType === "girl" ? "granddaughter" : "grandson",
+      question,
+      answer: result.answer,
+    }).catch((err) => console.warn("AI 대화 저장 예외:", err));
   };
 
   // 마이크 버튼 클릭 시 음성 인식 시작
