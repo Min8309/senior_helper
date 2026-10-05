@@ -133,6 +133,23 @@ class VoiceRecordService {
     });
   }
 
+  // 오디오 Blob 또는 음성 입력을 텍스트로 변환 (Requirement 9: speechToText)
+  // 향후 백엔드/n8n Whisper 또는 STT API 연동 지점
+  async speechToText(audioBlob?: Blob): Promise<string> {
+    if (this.transcriptAccumulated.trim()) {
+      return this.transcriptAccumulated.trim();
+    }
+    // 향후 n8n / 서버 STT 웹훅 호출 예시:
+    // if (audioBlob && N8N_STT_WEBHOOK_URL) {
+    //   const formData = new FormData();
+    //   formData.append("audio", audioBlob, "voice.webm");
+    //   const res = await fetch(N8N_STT_WEBHOOK_URL, { method: "POST", body: formData });
+    //   const data = await res.json();
+    //   return data.text;
+    // }
+    return this.transcriptAccumulated.trim();
+  }
+
   // 취소
   cancelRecording() {
     if (this.recognition) {
@@ -159,3 +176,11 @@ class VoiceRecordService {
 }
 
 export const voiceRecordService = new VoiceRecordService();
+
+// Requirement 9: 별도 service 함수로 분리하여 내보내기
+export const recordVoice = (onTranscriptUpdate?: (text: string) => void) =>
+  voiceRecordService.recordVoice(onTranscriptUpdate);
+export const stopRecording = () => voiceRecordService.stopRecording();
+export const speechToText = (audioBlob?: Blob) => voiceRecordService.speechToText(audioBlob);
+export const cancelRecording = () => voiceRecordService.cancelRecording();
+

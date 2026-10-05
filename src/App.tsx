@@ -5,6 +5,10 @@ import { AiAskCard } from "./components/AiAskCard";
 import { TodayMemoryCard } from "./components/TodayMemoryCard";
 import { MemoryScreen } from "./components/MemoryScreen";
 import { NameEditModal } from "./components/NameEditModal";
+import { ClayBrainIcon, ClayRetroMicIcon, ClayTulipPotIcon, PencilEditIcon } from "./components/ClayIcons";
+import { CozySunlitBackdrop } from "./components/CozySunlitBackdrop";
+import { BottomNavBar } from "./components/BottomNavBar";
+import cozyRoomBg from "./assets/cozy_room_bg.jpg";
 
 // ─── Shared icons ─────────────────────────────────────────────────────────────
 
@@ -188,12 +192,20 @@ function GreetingScreen({
   onGuide,
   onGame,
   onMemory,
+  childType = "boy",
+  setChildType,
 }: {
   onGuide: () => void;
   onGame: () => void;
   onMemory: () => void;
+  childType?: "boy" | "girl";
+  setChildType?: (t: "boy" | "girl") => void;
 }) {
-  const [childType, setChildType] = useState<"boy" | "girl">("boy");
+  const handleSelectChild = (type: "boy" | "girl") => {
+    if (setChildType) {
+      setChildType(type);
+    }
+  };
   const [playKey, setPlayKey] = useState(0);
   const [ttsPlaying, setTtsPlaying] = useState(false);
   const [isVideoMuted, setIsVideoMuted] = useState(true);
@@ -208,6 +220,7 @@ function GreetingScreen({
     }
   });
   const [isNameModalOpen, setIsNameModalOpen] = useState(false);
+  const [isAskModalOpen, setIsAskModalOpen] = useState(false);
 
   const handleSaveName = (newName: string) => {
     setUserName(newName);
@@ -257,22 +270,34 @@ function GreetingScreen({
   };
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "#FFFDF7", overflow: "hidden" }}>
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "#FFFDF7", overflow: "hidden", position: "relative" }}>
+      {/* ── 잔잔하고 따스한 햇살 & 방 안 풍경 배경 (Cozy Sunlit Room Backdrop) ── */}
+      <CozySunlitBackdrop />
+
       {/* ── Scrollable Body Area ── */}
-      <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", paddingBottom: 24, gap: 16 }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", paddingBottom: 16, gap: 16, position: "relative", zIndex: 1 }}>
         
-        {/* ── 1. HEADER (시간 & 음성 스피커 & 안녕하세요 00님) ── */}
+        {/* ── 1. HEADER (날짜 & 날씨·온도 & 음성 스피커 & 안녕하세요 00님) ── */}
         <header style={{ padding: "18px 20px 0", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-            <span style={{ fontSize: 19, fontWeight: 700, color: "#626A6E" }}>
-              오전 8:30
-            </span>
+            {/* 날짜와 날씨 (오늘의 온도) */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 18, fontWeight: 800, color: "#4A5568" }}>
+                10월 2일 금요일
+              </span>
+              <span style={{ fontSize: 15, color: "#CBD5E1" }}>•</span>
+              <span style={{ fontSize: 17, fontWeight: 800, color: "#26734D", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                <span>☀️</span>
+                <span>맑음 21°C</span>
+              </span>
+            </div>
+
             <button
               onClick={handleSpeakGreeting}
               aria-label="안내 음성 듣기"
               style={{
-                width: 52,
-                height: 52,
+                width: 50,
+                height: 50,
                 borderRadius: 16,
                 background: ttsPlaying ? "#E7F4EC" : "#FFFFFF",
                 border: `2px solid ${ttsPlaying ? "#26734D" : "#D9DEDA"}`,
@@ -282,77 +307,56 @@ function GreetingScreen({
                 cursor: "pointer",
                 boxShadow: "0 2px 8px rgba(30,50,40,0.06)",
                 transition: "all 0.15s ease",
+                flexShrink: 0,
               }}
             >
               <SpeakerIcon color={ttsPlaying ? "#26734D" : "#252A2D"} />
             </button>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 4 }}>
             <h1
               onClick={() => setIsNameModalOpen(true)}
               title="이름을 변경하시려면 눌러주세요"
-              style={{ fontSize: 26, fontWeight: 900, color: "#252A2D", margin: 0, lineHeight: 1.3, cursor: "pointer" }}
+              style={{ fontSize: 26, fontWeight: 900, color: "#252A2D", margin: 0, lineHeight: 1.3, cursor: "pointer", flex: 1 }}
             >
-              안녕하세요, <span style={{ color: "#26734D", textDecoration: "underline", textUnderlineOffset: 4 }}>{userName}님</span> 👋
+              안녕하세요, <span style={{ color: "#1B5E20", textDecoration: "underline", textUnderlineOffset: 4 }}>{userName}님</span> 👋
             </h1>
             <button
               onClick={() => setIsNameModalOpen(true)}
-              aria-label="이름 변경"
+              aria-label="이름 변경하기"
               style={{
-                background: "#E7F4EC",
-                border: "1.5px solid #26734D",
-                borderRadius: 12,
-                padding: "4px 10px",
-                fontSize: 13,
+                minHeight: 48,
+                padding: "10px 18px",
+                borderRadius: 24,
+                background: "#E8F5E9",
+                border: "2.5px solid #1B5E20",
+                color: "#1B5E20",
+                fontSize: 16,
                 fontWeight: 800,
-                color: "#26734D",
                 cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
                 flexShrink: 0,
+                boxShadow: "0 3px 10px rgba(27,94,32,0.16)",
+                transition: "all 0.15s ease",
               }}
             >
-              ✏️ 이름 변경
+              <PencilEditIcon size={20} color="#1B5E20" />
+              <span>이름 변경</span>
             </button>
           </div>
-          <p style={{ fontSize: 18, fontWeight: 700, color: "#626A6E", margin: 0 }}>
-            10월 2일 금요일
-          </p>
         </header>
 
-        {/* ── 2. 오늘 날짜 & 날씨 건강 정보 카드 ── */}
-        <div style={{ padding: "0 20px", flexShrink: 0 }}>
-          <div style={{
-            background: "#FFF9ED",
-            border: "2px solid #EEDBB2",
-            borderRadius: 20,
-            padding: "14px 18px",
-            display: "flex",
-            alignItems: "center",
-            gap: 14,
-            boxShadow: "0 4px 14px rgba(242,162,58,0.08)",
-          }}>
-            <div style={{ width: 44, height: 44, borderRadius: 14, background: "#FEF3C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, flexShrink: 0 }}>
-              ☀️
-            </div>
-            <div>
-              <div style={{ fontSize: 19, fontWeight: 900, color: "#252A2D" }}>
-                오늘은 맑아요
-              </div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "#626A6E", marginTop: 2 }}>
-                산책하기 참 좋은 날이에요
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ── 3. 손자 / 손녀 선택 UI (Segmented Control) ── */}
+        {/* ── 2. 손자 / 손녀 선택 UI (Segmented Control) ── */}
         <div style={{ padding: "0 20px", display: "flex", gap: 12, flexShrink: 0 }}>
           <button
-            onClick={() => setChildType("boy")}
+            onClick={() => handleSelectChild("boy")}
             aria-label="손자와 함께 선택"
             style={{
               flex: 1,
-              height: 54,
+              height: 52,
               borderRadius: 18,
               border: childType === "boy" ? "2.5px solid #26734D" : "2px solid #D9DEDA",
               background: childType === "boy" ? "#E7F4EC" : "#FFFFFF",
@@ -373,11 +377,11 @@ function GreetingScreen({
           </button>
 
           <button
-            onClick={() => setChildType("girl")}
+            onClick={() => handleSelectChild("girl")}
             aria-label="손녀와 함께 선택"
             style={{
               flex: 1,
-              height: 54,
+              height: 52,
               borderRadius: 18,
               border: childType === "girl" ? "2.5px solid #26734D" : "2px solid #D9DEDA",
               background: childType === "girl" ? "#E7F4EC" : "#FFFFFF",
@@ -398,31 +402,47 @@ function GreetingScreen({
           </button>
         </div>
 
-        {/* ── 4. AI 캐릭터 영상 (01.mp4 / 02.mp4) & 말풍선 ── */}
+        {/* ── 3. AI 캐릭터 영상 (01.mp4 / 02.mp4) & 말풍선 (따스한 방 안 분위기) ── */}
         <div style={{ padding: "0 20px", flexShrink: 0 }}>
           <div style={{
-            background: "#FFF9ED",
-            border: "2px solid #D9DEDA",
-            borderRadius: 24,
-            padding: "16px",
+            background: "linear-gradient(180deg, rgba(255, 253, 248, 0.95) 0%, rgba(254, 245, 230, 0.95) 100%)",
+            border: "2px solid #F0DAC3",
+            borderRadius: 22,
+            padding: "12px 14px",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            boxShadow: "0 4px 16px rgba(30,50,40,0.06)",
+            boxShadow: "0 6px 20px rgba(180,110,40,0.08)",
             position: "relative",
           }}>
-            {/* 캐릭터 영상 플레이 영역 (01.mp4 / 02.mp4 재생) */}
+            {/* 햇살 가득한 방 상단 미니 뱃지 */}
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: 13,
+              fontWeight: 800,
+              color: "#92400E",
+              marginBottom: 8,
+              alignSelf: "flex-start",
+              paddingLeft: 4,
+            }}>
+              <span>☀️</span>
+              <span>따스한 방 안에서 함께하는 {childType === "boy" ? "손자" : "손녀"}</span>
+            </div>
+
+            {/* 캐릭터 영상 플레이 영역 */}
             <div
               onClick={handleVideoTouch}
               title="터치하시면 영상 소리를 켜거나 다시 재생합니다"
               style={{
                 width: "100%",
-                height: 200,
+                height: 168,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 cursor: "pointer",
-                borderRadius: 18,
+                borderRadius: 16,
                 overflow: "hidden",
                 background: "transparent",
                 position: "relative",
@@ -440,19 +460,19 @@ function GreetingScreen({
                   maxHeight: "100%",
                   maxWidth: "100%",
                   objectFit: "contain",
-                  borderRadius: 18,
+                  borderRadius: 16,
                 }}
               />
               {/* 소리 상태 뱃지 */}
               <div
                 style={{
                   position: "absolute",
-                  bottom: 8,
-                  right: 8,
+                  bottom: 6,
+                  right: 6,
                   background: "rgba(0,0,0,0.6)",
                   color: "#FFFFFF",
                   padding: "4px 8px",
-                  borderRadius: 12,
+                  borderRadius: 10,
                   fontSize: 12,
                   fontWeight: 800,
                   display: "flex",
@@ -468,13 +488,13 @@ function GreetingScreen({
             <div style={{
               width: "100%",
               background: "#FFFFFF",
-              border: "2px solid #D9DEDA",
-              borderRadius: 18,
-              padding: "12px 16px",
-              marginTop: 12,
-              boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+              border: "1.5px solid #F2DFCC",
+              borderRadius: 14,
+              padding: "10px 14px",
+              marginTop: 10,
+              boxShadow: "0 2px 6px rgba(180,110,40,0.06)",
             }}>
-              <p style={{ fontSize: 18, fontWeight: 800, color: "#252A2D", lineHeight: 1.45, margin: 0, textAlign: "center", wordBreak: "keep-all" }}>
+              <p style={{ fontSize: 17, fontWeight: 800, color: "#252A2D", lineHeight: 1.4, margin: 0, textAlign: "center", wordBreak: "keep-all" }}>
                 {childType === "boy"
                   ? `“${userName}님, 오늘도 같이 해볼까요? 5분만 두뇌 운동해요 😊”`
                   : `“${userName}님, 오늘 날씨 참 좋아요! 같이 5분 두뇌 운동해요 💖”`}
@@ -483,150 +503,211 @@ function GreetingScreen({
           </div>
         </div>
 
-        {/* ── 5. 오늘의 두뇌 운동 (우선순위 3: Primary Green 대형 CTA) ── */}
-        <div style={{ padding: "0 20px", flexShrink: 0 }}>
+        {/* ── 4. 메뉴 버튼 3종 (목적별 컬러 코딩 & 3D 클레이 아이콘) ── */}
+        <div style={{ padding: "0 20px", display: "flex", flexDirection: "column", gap: 12, flexShrink: 0 }}>
+          {/* 1) 오늘의 두뇌 운동 (포레스트 그린 #1B5E20 - 건강·활력) */}
           <button
             onClick={onGame}
             aria-label="오늘의 두뇌 운동 시작하기"
             style={{
               width: "100%",
-              minHeight: 78,
-              borderRadius: 20,
-              background: "#26734D",
+              minHeight: 76,
+              borderRadius: 22,
+              background: "#1B5E20",
               border: "none",
               padding: "14px 20px",
               display: "flex",
               alignItems: "center",
               gap: 16,
               cursor: "pointer",
-              boxShadow: "0 6px 18px rgba(38,115,77,0.28)",
+              boxShadow: "0 6px 18px rgba(27,94,32,0.32)",
               textAlign: "left",
             }}
           >
-            <span style={{ fontSize: 32, flexShrink: 0 }}>🧠</span>
+            <ClayBrainIcon size={48} />
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 21, fontWeight: 900, color: "#FFFFFF", lineHeight: 1.25 }}>
                 오늘의 두뇌 운동
               </div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "#E7F4EC", marginTop: 4 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "#E8F5E9", marginTop: 3 }}>
                 5분 · 기억력 + 손가락 운동
               </div>
             </div>
             <span style={{ fontSize: 24, color: "#FFFFFF", fontWeight: 900 }}>▶</span>
           </button>
-        </div>
 
-        {/* ── 6. AI 손자·손녀에게 물어보기 (우선순위 4: 신규 대화 기능) ── */}
-        <div style={{ padding: "0 20px", flexShrink: 0 }}>
-          <AiAskCard childType={childType} onOpenGuide={onGuide} />
-        </div>
+          {/* 2) 손자/손녀에게 물어보기 (선셋 앰버/오렌지 #D97706 - 대화·교감) */}
+          <button
+            onClick={() => setIsAskModalOpen(true)}
+            aria-label={`${childType === "boy" ? "손자" : "손녀"}에게 물어보기`}
+            style={{
+              width: "100%",
+              minHeight: 76,
+              borderRadius: 22,
+              background: "#D97706",
+              border: "none",
+              padding: "14px 20px",
+              display: "flex",
+              alignItems: "center",
+              gap: 16,
+              cursor: "pointer",
+              boxShadow: "0 6px 18px rgba(217,119,6,0.35)",
+              textAlign: "left",
+            }}
+          >
+            <ClayRetroMicIcon size={48} />
+            <div style={{ flex: 1 }}>
+              <div style={{
+                fontSize: 21,
+                fontWeight: 900,
+                color: "#FFFFFF",
+                lineHeight: 1.25,
+                textShadow: "0 1px 2px rgba(120,53,15,0.45)",
+              }}>
+                {childType === "boy" ? "손자에게 물어보기" : "손녀에게 물어보기"}
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "#FEF3C7", marginTop: 3 }}>
+                궁금한 점을 편하게 말씀해 주세요
+              </div>
+            </div>
+            <span style={{ fontSize: 24, color: "#FFFFFF", fontWeight: 900, textShadow: "0 1px 2px rgba(120,53,15,0.45)" }}>▶</span>
+          </button>
 
-        {/* ── 7. 오늘의 기억 (우선순위 5: 신규 하루 기억 기능) ── */}
-        <div style={{ padding: "0 20px", flexShrink: 0 }}>
-          <TodayMemoryCard childType={childType} onViewMemories={onMemory} />
+          {/* 3) 오늘의 기억 (소프트 인디고/코발트 #2563EB - 기억·안정) */}
+          <button
+            onClick={onMemory}
+            aria-label="오늘의 기억 화면으로 이동"
+            style={{
+              width: "100%",
+              minHeight: 76,
+              borderRadius: 22,
+              background: "#2563EB",
+              border: "none",
+              padding: "14px 20px",
+              display: "flex",
+              alignItems: "center",
+              gap: 16,
+              cursor: "pointer",
+              boxShadow: "0 6px 18px rgba(37,99,235,0.35)",
+              textAlign: "left",
+            }}
+          >
+            <ClayTulipPotIcon size={48} />
+            <div style={{ flex: 1 }}>
+              <div style={{
+                fontSize: 21,
+                fontWeight: 900,
+                color: "#FFFFFF",
+                lineHeight: 1.25,
+                textShadow: "0 1px 2px rgba(30,58,138,0.45)",
+              }}>
+                오늘의 기억
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "#DBEAFE", marginTop: 3 }}>
+                말하거나 글로 오늘을 남겨보세요
+              </div>
+            </div>
+            <span style={{ fontSize: 24, color: "#FFFFFF", fontWeight: 900, textShadow: "0 1px 2px rgba(30,58,138,0.45)" }}>▶</span>
+          </button>
         </div>
 
       </div>
 
-      {/* ── 8. 하단 내비게이션 (Bottom Navigation Bar: 4개 메뉴) ── */}
-      <nav style={{
-        height: 68,
-        background: "#FFFFFF",
-        borderTop: "2px solid #D9DEDA",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-around",
-        flexShrink: 0,
-        boxShadow: "0 -2px 10px rgba(0,0,0,0.03)",
-      }}>
-        {/* 1. 홈 (현재) */}
-        <button
-          onClick={() => {}}
-          aria-label="홈 화면"
-          style={{
-            flex: 1,
-            height: "100%",
-            background: "none",
-            border: "none",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 2,
-            cursor: "pointer",
-            color: "#26734D",
-          }}
-        >
-          <span style={{ fontSize: 20 }}>🏠</span>
-          <span style={{ fontSize: 14, fontWeight: 900 }}>홈</span>
-        </button>
+      {/* ── 하단 네비게이션 바 (Bottom Navigation Bar) ── */}
+      <BottomNavBar
+        currentScreen="home"
+        onNavigateHome={() => {}}
+        onNavigateGame={onGame}
+        onNavigateMemory={onMemory}
+        onNavigateGuide={onGuide}
+      />
 
-        {/* 2. 두뇌 운동 */}
-        <button
-          onClick={onGame}
-          aria-label="두뇌 운동 화면으로 이동"
+      {/* ── AI 손자·손녀 질문 대화 모달 (손자/손녀에게 물어보기 탭 시) ── */}
+      {isAskModalOpen && (
+        <div
           style={{
-            flex: 1,
-            height: "100%",
-            background: "none",
-            border: "none",
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.65)",
+            zIndex: 100,
             display: "flex",
-            flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            gap: 2,
-            cursor: "pointer",
-            color: "#626A6E",
+            padding: "16px",
           }}
         >
-          <span style={{ fontSize: 20 }}>🧠</span>
-          <span style={{ fontSize: 14, fontWeight: 700 }}>두뇌 운동</span>
-        </button>
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 390,
+              maxHeight: "90vh",
+              overflowY: "auto",
+              borderRadius: 26,
+              background: "#FFFDF7",
+              border: "3px solid #26734D",
+              boxShadow: "0 20px 50px rgba(0,0,0,0.3)",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            {/* 상단 닫기 헤더 */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "14px 18px",
+                background: "#FFFFFF",
+                borderBottom: "2px solid #EEDBB2",
+                flexShrink: 0,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 24 }}>{childType === "boy" ? "👦" : "👧"}</span>
+                <span style={{ fontSize: 19, fontWeight: 900, color: "#1F5D40" }}>
+                  {childType === "boy" ? "손자에게 물어보기" : "손녀에게 물어보기"}
+                </span>
+              </div>
+              <button
+                onClick={() => {
+                  window.speechSynthesis?.cancel();
+                  setIsAskModalOpen(false);
+                }}
+                aria-label="닫기"
+                style={{
+                  height: 40,
+                  paddingInline: 12,
+                  borderRadius: 12,
+                  background: "#F1F5F3",
+                  border: "1.5px solid #D9DEDA",
+                  fontSize: 15,
+                  fontWeight: 800,
+                  color: "#626A6E",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+              >
+                <span>✕</span>
+                <span>닫기</span>
+              </button>
+            </div>
 
-        {/* 3. 나의 기억 */}
-        <button
-          onClick={onMemory}
-          aria-label="나의 기억 저장소 화면으로 이동"
-          style={{
-            flex: 1,
-            height: "100%",
-            background: "none",
-            border: "none",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 2,
-            cursor: "pointer",
-            color: "#626A6E",
-          }}
-        >
-          <span style={{ fontSize: 20 }}>🌷</span>
-          <span style={{ fontSize: 14, fontWeight: 700 }}>나의 기억</span>
-        </button>
+            {/* AI 대화 카드 본문 */}
+            <div style={{ padding: "16px", flex: 1 }}>
+              <AiAskCard
+                childType={childType}
+                onOpenGuide={() => {
+                  setIsAskModalOpen(false);
+                  onGuide();
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
-        {/* 4. 생활 도움 */}
-        <button
-          onClick={onGuide}
-          aria-label="생활 도움 화면으로 이동"
-          style={{
-            flex: 1,
-            height: "100%",
-            background: "none",
-            border: "none",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 2,
-            cursor: "pointer",
-            color: "#626A6E",
-          }}
-        >
-          <span style={{ fontSize: 20 }}>📷</span>
-          <span style={{ fontSize: 14, fontWeight: 700 }}>생활 도움</span>
-        </button>
-      </nav>
 
       {/* ── 9. 사용자 이름 변경 모달 ── */}
       <NameEditModal
@@ -2076,13 +2157,63 @@ type Screen = "home" | "guide" | "game" | "memory";
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>("home");
+  const [characterMode, setCharacterMode] = useState<"boy" | "girl">(() => {
+    try {
+      return (localStorage.getItem("senior_character_mode") as "boy" | "girl") || "boy";
+    } catch {
+      return "boy";
+    }
+  });
+
+  const handleSelectCharacter = (mode: "boy" | "girl") => {
+    setCharacterMode(mode);
+    try {
+      localStorage.setItem("senior_character_mode", mode);
+    } catch {}
+  };
 
   return (
     <div style={{
       display: "flex", alignItems: "center", justifyContent: "center",
-      width: "100%", minHeight: "100vh", background: "#EAE6DB",
+      width: "100%", minHeight: "100vh",
+      backgroundImage: `url(${cozyRoomBg})`,
+      backgroundSize: "cover",
+      backgroundPosition: "center",
+      backgroundColor: "#F3EDE2",
+      position: "relative",
+      padding: "24px 16px",
       fontFamily: "'Noto Sans KR', 'Nunito', sans-serif",
     }}>
+      {/* ── 아늑한 거실 채광 & 따뜻한 앰비언트 햇살 오버레이 ── */}
+      <div style={{
+        position: "absolute",
+        inset: 0,
+        background: "radial-gradient(ellipse at 35% 20%, rgba(255, 248, 225, 0.45) 0%, rgba(245, 218, 175, 0.28) 45%, rgba(65, 38, 18, 0.45) 100%)",
+        pointerEvents: "none",
+      }} />
+
+      {/* 데스크톱 환경용 잔잔한 아늑한 거실 무드 라벨 */}
+      <div style={{
+        position: "absolute",
+        top: 14,
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        background: "rgba(255, 255, 255, 0.9)",
+        backdropFilter: "blur(10px)",
+        padding: "7px 18px",
+        borderRadius: 24,
+        boxShadow: "0 4px 16px rgba(60, 30, 10, 0.12)",
+        fontSize: 14,
+        fontWeight: 800,
+        color: "#78350F",
+        border: "1px solid rgba(255, 255, 255, 0.8)",
+        zIndex: 10,
+      }}>
+        <span>☀️</span>
+        <span>따스한 아침 햇살이 머무는 거실</span>
+      </div>
+
       <style>{`
         @keyframes wave-0 { from{height:20%} to{height:90%} }
         @keyframes wave-1 { from{height:40%} to{height:70%} }
@@ -2093,12 +2224,15 @@ export default function App() {
       `}</style>
 
       <div style={{
+        position: "relative",
+        zIndex: 1,
         width: 390, height: 844,
+        maxWidth: "100%", maxHeight: "100vh",
         background: "#FFFDF7",
         borderRadius: 40,
-        boxShadow: "0 20px 60px rgba(37,42,45,0.18), 0 4px 16px rgba(0,0,0,0.06)",
+        boxShadow: "0 28px 75px rgba(50, 25, 8, 0.45), 0 8px 24px rgba(0, 0, 0, 0.22)",
         overflow: "hidden", display: "flex", flexDirection: "column",
-        border: "4px solid #FFFFFF",
+        border: "4px solid rgba(255, 255, 255, 0.9)",
       }}>
         <div style={{ height: 6, background: "#FFFFFF", flexShrink: 0 }} />
         <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
@@ -2107,6 +2241,8 @@ export default function App() {
               onGuide={() => setScreen("guide")}
               onGame={() => setScreen("game")}
               onMemory={() => setScreen("memory")}
+              childType={characterMode}
+              setChildType={handleSelectCharacter}
             />
           )}
           {screen === "guide" && <GuideScreen onBack={() => setScreen("home")} />}
@@ -2117,6 +2253,7 @@ export default function App() {
               onNavigateHome={() => setScreen("home")}
               onNavigateGame={() => setScreen("game")}
               onNavigateGuide={() => setScreen("guide")}
+              characterMode={characterMode}
             />
           )}
         </div>

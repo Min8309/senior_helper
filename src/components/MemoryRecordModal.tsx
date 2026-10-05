@@ -1,20 +1,22 @@
 import { useState, useEffect, useRef } from "react";
-import { voiceRecordService } from "../services/voiceRecordService";
-import { memoryStorage } from "../services/memoryStorage";
+import { CharacterMode } from "../types/memory";
+import { recordVoice, stopRecording, cancelRecording } from "../services/voiceRecordService";
+import { saveMemory, formatDisplayText, generateMemoryTitle } from "../services/memoryStorage";
 
 interface MemoryRecordModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSaved: () => void;
-  characterMode?: "boy" | "girl";
+  characterMode?: CharacterMode;
 }
 
+// Requirement 6: AI 손자·손녀 질문 목록
 const QUESTIONS = [
   "오늘 가장 좋았던 일은 뭐였어요?",
   "오늘 누구와 이야기했어요?",
-  "오늘 맛있게 드신 음식은 뭐예요?",
-  "오늘 어디에 다녀오셨어요?",
   "오늘 재미있었던 일이 있었어요?",
+  "오늘 어디에 다녀오셨어요?",
+  "오늘 맛있게 드신 음식은 뭐예요?",
 ];
 
 type Step = "choose" | "voice_record" | "voice_confirm" | "text_input";
@@ -25,12 +27,16 @@ export function MemoryRecordModal({
   onSaved,
   characterMode = "boy",
 }: MemoryRecordModalProps) {
-  // 오늘 날짜 기준 1개 질문 선택
+  const isGirl = characterMode === "girl" || characterMode === "granddaughter";
+
+  // 오늘 날짜 및 질문 인덱스 관리
   const today = new Date();
-  const dayIndex = today.getDate() % QUESTIONS.length;
-  const currentQuestion = QUESTIONS[dayIndex];
+  const [questionIndex, setQuestionIndex] = useState(() => today.getDate() % QUESTIONS.length);
+  const currentQuestion = QUESTIONS[questionIndex];
 
   const [step, setStep] = useState<Step>("choose");
+
+  // 음성 녹음 관련 상태
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
   const [liveTranscript, setLiveTranscript] = useState("");
@@ -38,12 +44,16 @@ export function MemoryRecordModal({
   const [audioDataUrl, setAudioDataUrl] = useState<string | undefined>(undefined);
   const [isEditingText, setIsEditingText] = useState(false);
 
-  // 글 작성용
+  // 미리듣기 오디오 상태
+  const [isPlayingPreview, setIsPlayingPreview] = useState(false);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // 글 작성용 상태
   const [manualText, setManualText] = useState("");
 
   const timerRef = useRef<any>(null);
 
-  // 모달 열릴 때 초기화
+  // 모달이 열릴 때 초기화
   useEffect(() => {
     if (isOpen) {
       setStep("choose");
@@ -54,6 +64,11 @@ export function MemoryRecordModal({
       setAudioDataUrl(undefined);
       setIsEditingText(false);
       setManualText("");
+      setIsPlayingPreview(false);
+      if (previewAudioRef.current) {
+        previewAudioRef.current.pause();
+        previewAudioRef.current = null;
+      }
     }
   }, [isOpen]);
 
@@ -73,44 +88,80 @@ export function MemoryRecordModal({
 
   if (!isOpen) return null;
 
-  // 음성 녹음 시작
+  // 다음 질문으로 변경 (영감 제공용)
+  const handleNextQuestion = () => {
+    setQuestionIndex((prev) => (prev + 1) % QUESTIONS.length);
+  };
+
+  // 1. 음성 녹음 시작
   const handleStartVoice = async () => {
     setStep("voice_record");
     setLiveTranscript("");
     setRecordSeconds(0);
     setIsRecording(true);
 
-    const started = await voiceRecordService.recordVoice((transcript) => {
+    const started = await recordVoice((transcript) => {
       setLiveTranscript(transcript);
     });
 
     if (!started) {
-      // 마이크 지원 안 될 경우 글 작성으로 전환 안내
+      // 마이크 권한이나 미지원 환경 시 글쓰기 화면으로 전환
       setStep("text_input");
     }
   };
 
-  // 녹음 종료
+  // 2. 녹음 종료 (Requirement 3 & 4)
   const handleStopVoice = async () => {
     setIsRecording(false);
-    const result = await voiceRecordService.stopRecording();
-    const finalTranscript = result.transcript || liveTranscript || "오늘 참 기분 좋은 하루를 보냈어요.";
-    setConfirmedText(finalTranscript);
+    const result = await stopRecording();
+
+    // 음성 텍스트 확인 (원문 및 다듬어진 문장 준비)
+    const rawTranscript = (result.transcript || liveTranscript || "").trim();
+    const fallbackText = "오늘 공원에 가서 친구를 만나고 같이 산책했어요.";
+    const textToShow = rawTranscript ? formatDisplayText(rawTranscript) : fallbackText;
+
+    setConfirmedText(textToShow);
     setAudioDataUrl(result.audioDataUrl);
     setStep("voice_confirm");
   };
 
   // 녹음 취소
   const handleCancelVoice = () => {
-    voiceRecordService.cancelRecording();
+    cancelRecording();
     setIsRecording(false);
     setStep("choose");
   };
 
-  // 저장 실행 (음성 또는 글)
-  const handleSave = (type: "voice" | "text", content: string) => {
-    const textToSave = content.trim();
-    if (!textToSave) return;
+  // 녹음된 오디오 미리듣기 토글
+  const handleTogglePreviewAudio = () => {
+    if (!audioDataUrl) return;
+
+    if (isPlayingPreview && previewAudioRef.current) {
+      previewAudioRef.current.pause();
+      setIsPlayingPreview(false);
+      return;
+    }
+
+    try {
+      const audio = new Audio(audioDataUrl);
+      previewAudioRef.current = audio;
+      setIsPlayingPreview(true);
+      audio.onended = () => {
+        setIsPlayingPreview(false);
+      };
+      audio.onerror = () => {
+        setIsPlayingPreview(false);
+      };
+      audio.play().catch(() => setIsPlayingPreview(false));
+    } catch {
+      setIsPlayingPreview(false);
+    }
+  };
+
+  // 기억 저장 실행 (Requirement 7)
+  const handleSave = (type: "voice" | "text", rawInput: string) => {
+    const trimmed = rawInput.trim();
+    if (!trimmed) return;
 
     const dateStr = today.toISOString().split("T")[0];
     const month = today.getMonth() + 1;
@@ -119,40 +170,32 @@ export function MemoryRecordModal({
     const dayName = dayNames[today.getDay()];
     const dateLabel = `${month}월 ${date}일 ${dayName}요일`;
 
-    // 카테고리/제목 자동 결정
-    let title = "🌳 오늘의 기억";
-    if (textToSave.includes("산책") || textToSave.includes("공원") || textToSave.includes("걷")) {
-      title = "🌳 공원 산책";
-    } else if (textToSave.includes("밥") || textToSave.includes("식사") || textToSave.includes("저녁") || textToSave.includes("점심") || textToSave.includes("음식")) {
-      title = "🍲 맛있는 식사";
-    } else if (textToSave.includes("친구") || textToSave.includes("만남") || textToSave.includes("커피") || textToSave.includes("동무")) {
-      title = "☕ 반가운 만남";
-    } else if (textToSave.includes("가족") || textToSave.includes("딸") || textToSave.includes("아들") || textToSave.includes("손자") || textToSave.includes("손녀")) {
-      title = "❤️ 가족과 함께";
-    } else if (textToSave.includes("병원") || textToSave.includes("약") || textToSave.includes("의사")) {
-      title = "🏥 건강 챙기기";
-    }
+    const title = generateMemoryTitle(trimmed);
+    const formattedDisplay = formatDisplayText(trimmed);
 
-    const formattedSummary = textToSave.endsWith(".") ? textToSave : `${textToSave}.`;
-
-    memoryStorage.saveMemory({
+    // Requirement 7 저장 형식
+    saveMemory({
       date: dateStr,
       date_label: dateLabel,
       title,
       question: currentQuestion,
       input_type: type,
-      original_text: textToSave,
-      display_text: formattedSummary,
-      summary: formattedSummary,
-      character_mode: characterMode,
+      original_text: trimmed,
+      display_text: formattedDisplay,
+      summary: formattedDisplay,
+      character_mode: isGirl ? "granddaughter" : "grandson",
       audio_data_url: type === "voice" ? audioDataUrl : undefined,
     });
+
+    if (previewAudioRef.current) {
+      previewAudioRef.current.pause();
+    }
 
     onSaved();
     onClose();
   };
 
-  // 타이머 초 포맷 (00:24)
+  // 초 단위 시간 포맷 (00:24)
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60).toString().padStart(2, "0");
     const s = (secs % 60).toString().padStart(2, "0");
@@ -175,7 +218,7 @@ export function MemoryRecordModal({
       <div
         style={{
           width: "100%",
-          maxWidth: 380,
+          maxWidth: 390,
           background: "#FFFDF7",
           borderRadius: 28,
           border: "3px solid #26734D",
@@ -183,10 +226,10 @@ export function MemoryRecordModal({
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
-          maxHeight: "90vh",
+          maxHeight: "92vh",
         }}
       >
-        {/* 상단 닫기 바 */}
+        {/* ── 상단 닫기 헤더 바 ── */}
         <div
           style={{
             display: "flex",
@@ -194,83 +237,119 @@ export function MemoryRecordModal({
             justifyContent: "space-between",
             padding: "14px 18px",
             background: "#FFFFFF",
-            borderBottom: "1.5px solid #EEDBB2",
+            borderBottom: "2px solid #EEDBB2",
           }}
         >
-          <span style={{ fontSize: 18, fontWeight: 900, color: "#1F5D40" }}>
-            🌷 오늘의 기억 남기기
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 22 }}>🌷</span>
+            <span style={{ fontSize: 19, fontWeight: 900, color: "#1F5D40" }}>
+              오늘의 기억
+            </span>
+          </div>
+
           <button
             onClick={() => {
-              if (isRecording) voiceRecordService.cancelRecording();
+              if (isRecording) cancelRecording();
+              if (previewAudioRef.current) previewAudioRef.current.pause();
               onClose();
             }}
-            aria-label="닫기"
+            aria-label="기억 창 닫기"
             style={{
-              width: 38,
-              height: 38,
-              borderRadius: 12,
+              height: 44,
+              paddingInline: 14,
+              borderRadius: 14,
               background: "#F1F5F3",
-              border: "none",
-              fontSize: 18,
-              fontWeight: 900,
-              color: "#626A6E",
+              border: "1.5px solid #D9DEDA",
+              fontSize: 16,
+              fontWeight: 800,
+              color: "#4A5568",
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
-              justifyContent: "center",
+              gap: 4,
             }}
           >
-            ✕
+            <span>✕</span>
+            <span>닫기</span>
           </button>
         </div>
 
-        {/* 바디 컨텐츠 */}
-        <div style={{ padding: "20px 18px", overflowY: "auto" }}>
+        {/* ── 바디 스크롤 컨텐츠 ── */}
+        <div style={{ padding: "20px 18px", overflowY: "auto", flex: 1 }}>
           {/* ════════════════════════════════════════════════════
-              1. 기록 방법 선택 화면 (Step: choose)
+              1. 기록 방법 선택 화면 (Requirement 2 & 6: choose)
           ════════════════════════════════════════════════════ */}
           {step === "choose" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              {/* 질문 카드 */}
+              {/* Requirement 6: AI 손자/손녀 질문 카드 */}
               <div
                 style={{
                   background: "#FFF9ED",
-                  border: "2px solid #EEDBB2",
-                  borderRadius: 20,
-                  padding: "16px",
+                  border: "2.5px solid #EEDBB2",
+                  borderRadius: 22,
+                  padding: "18px 16px",
                   textAlign: "center",
+                  boxShadow: "0 4px 12px rgba(242,162,58,0.1)",
                 }}
               >
-                <div style={{ fontSize: 26, marginBottom: 4 }}>
-                  {characterMode === "boy" ? "👦" : "👧"}
+                <div style={{ fontSize: 36, marginBottom: 4 }}>
+                  {isGirl ? "👧" : "👦"}
                 </div>
-                <div style={{ fontSize: 14, fontWeight: 800, color: "#D97706" }}>
-                  {characterMode === "boy" ? "손자의 질문" : "손녀의 질문"}
+                <div
+                  style={{
+                    display: "inline-block",
+                    background: "#FEF3C7",
+                    color: "#92400E",
+                    fontSize: 14,
+                    fontWeight: 800,
+                    padding: "3px 10px",
+                    borderRadius: 10,
+                  }}
+                >
+                  {isGirl ? "손녀의 오늘 질문" : "손자의 오늘 질문"} 💭
                 </div>
                 <p
                   style={{
                     fontSize: 20,
                     fontWeight: 900,
                     color: "#252A2D",
-                    margin: "6px 0 0",
-                    lineHeight: 1.4,
+                    margin: "10px 0 6px",
+                    lineHeight: 1.45,
                     wordBreak: "keep-all",
                   }}
                 >
                   “할머니, {currentQuestion}”
                 </p>
+
+                {/* 질문 변경 버튼 (시니어 영감 도움) */}
+                <button
+                  onClick={handleNextQuestion}
+                  style={{
+                    marginTop: 6,
+                    background: "none",
+                    border: "none",
+                    fontSize: 14,
+                    fontWeight: 700,
+                    color: "#D97706",
+                    cursor: "pointer",
+                    textDecoration: "underline",
+                    padding: "4px 8px",
+                  }}
+                >
+                  🔄 다른 질문 보기
+                </button>
               </div>
 
-              <div style={{ textAlign: "center" }}>
-                <p style={{ fontSize: 17, fontWeight: 700, color: "#4A5568", margin: 0 }}>
+              {/* Requirement 2 문구: “오늘 있었던 일을 들려주세요.” */}
+              <div style={{ textAlign: "center", padding: "4px 0" }}>
+                <p style={{ fontSize: 18, fontWeight: 800, color: "#4A5568", margin: 0 }}>
                   오늘 있었던 일을 들려주세요 😊
                 </p>
               </div>
 
-              {/* 2개 큰 선택 버튼 */}
+              {/* Requirement 2: 두 개의 큰 버튼 (음성 vs 글) */}
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {/* 1. 말로 이야기하기 (Primary) */}
+                {/* 1. 🎤 말로 이야기하기 (Primary 기능, 가장 크게) */}
                 <button
                   onClick={handleStartVoice}
                   aria-label="말로 이야기하기"
@@ -285,20 +364,20 @@ export function MemoryRecordModal({
                     alignItems: "center",
                     gap: 14,
                     cursor: "pointer",
-                    boxShadow: "0 6px 18px rgba(38,115,77,0.25)",
+                    boxShadow: "0 6px 18px rgba(38,115,77,0.28)",
                     textAlign: "left",
                   }}
                 >
                   <div
                     style={{
-                      width: 48,
-                      height: 48,
+                      width: 50,
+                      height: 50,
                       borderRadius: "50%",
                       background: "#FFFFFF",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      fontSize: 26,
+                      fontSize: 28,
                       flexShrink: 0,
                     }}
                   >
@@ -309,13 +388,13 @@ export function MemoryRecordModal({
                       말로 이야기하기
                     </div>
                     <div style={{ fontSize: 15, fontWeight: 700, color: "#E7F4EC", marginTop: 2 }}>
-                      편하게 말씀해 주세요
+                      편하게 말씀해 주세요 (말로 대답하기)
                     </div>
                   </div>
                   <span style={{ fontSize: 22, color: "#FFFFFF", fontWeight: 900 }}>▶</span>
                 </button>
 
-                {/* 2. 글로 기록하기 (Secondary) */}
+                {/* 2. ✏️ 글로 기록하기 (Secondary 기능) */}
                 <button
                   onClick={() => setStep("text_input")}
                   aria-label="글로 기록하기"
@@ -336,14 +415,14 @@ export function MemoryRecordModal({
                 >
                   <div
                     style={{
-                      width: 44,
-                      height: 44,
+                      width: 46,
+                      height: 46,
                       borderRadius: "50%",
                       background: "#E7F4EC",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      fontSize: 22,
+                      fontSize: 24,
                       flexShrink: 0,
                     }}
                   >
@@ -354,7 +433,7 @@ export function MemoryRecordModal({
                       글로 기록하기
                     </div>
                     <div style={{ fontSize: 15, fontWeight: 700, color: "#26734D", marginTop: 2 }}>
-                      직접 글을 적어보세요
+                      직접 글을 적어보세요 (글로 대답하기)
                     </div>
                   </div>
                   <span style={{ fontSize: 20, color: "#26734D", fontWeight: 900 }}>▶</span>
@@ -364,141 +443,234 @@ export function MemoryRecordModal({
           )}
 
           {/* ════════════════════════════════════════════════════
-              2. 음성 녹음 진행 화면 (Step: voice_record)
+              2. 음성 녹음 화면 (Requirement 3: voice_record)
           ════════════════════════════════════════════════════ */}
           {step === "voice_record" && (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 18, textAlign: "center" }}>
-              {/* 질문 문구 */}
-              <div style={{ fontSize: 16, fontWeight: 800, color: "#26734D" }}>
-                “{currentQuestion}”
-              </div>
-
-              {/* 녹음 상태 & 시간 */}
+              {/* 질문 안내 */}
               <div
                 style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 8,
-                  background: "#FEE2E2",
-                  border: "2px solid #EF4444",
-                  padding: "6px 16px",
-                  borderRadius: 20,
+                  background: "#FFF9ED",
+                  border: "1.5px solid #EEDBB2",
+                  borderRadius: 16,
+                  padding: "10px 16px",
+                  width: "100%",
+                  boxSizing: "border-box",
                 }}
               >
-                <span style={{ width: 12, height: 12, borderRadius: "50%", background: "#EF4444", animation: "pulse 1s infinite" }} />
-                <span style={{ fontSize: 17, fontWeight: 900, color: "#991B1B" }}>
-                  듣고 있어요
-                </span>
-                <span style={{ fontSize: 17, fontWeight: 800, color: "#991B1B" }}>
-                  {formatTime(recordSeconds)}
-                </span>
-              </div>
-
-              {/* 중앙 큰 마이크 애니메이션 */}
-              <div
-                style={{
-                  width: 100,
-                  height: 100,
-                  borderRadius: "50%",
-                  background: "#26734D",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 48,
-                  color: "#FFFFFF",
-                  boxShadow: "0 8px 30px rgba(38,115,77,0.35)",
-                  animation: "pulse 1.4s infinite",
-                }}
-              >
-                🎤
-              </div>
-
-              <div>
-                <p style={{ fontSize: 20, fontWeight: 900, color: "#252A2D", margin: 0 }}>
-                  천천히 편하게 말씀해 주세요
-                </p>
-                <p style={{ fontSize: 16, fontWeight: 700, color: "#626A6E", margin: "6px 0 0" }}>
-                  말씀이 끝나면 아래 버튼을 눌러주세요
-                </p>
-              </div>
-
-              {/* 실시간 텍스트 피드백 */}
-              {liveTranscript && (
-                <div
-                  style={{
-                    width: "100%",
-                    background: "#FFFFFF",
-                    border: "2px solid #D9DEDA",
-                    borderRadius: 16,
-                    padding: "12px 14px",
-                    fontSize: 17,
-                    fontWeight: 700,
-                    color: "#1F5D40",
-                    lineHeight: 1.4,
-                    boxSizing: "border-box",
-                  }}
-                >
-                  “{liveTranscript}”
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#D97706" }}>
+                  {isGirl ? "손녀의 질문" : "손자의 질문"}
                 </div>
+                <div style={{ fontSize: 17, fontWeight: 800, color: "#92400E", marginTop: 2 }}>
+                  “{currentQuestion}”
+                </div>
+              </div>
+
+              {/* 녹음 중 상태 vs 시작 대기 상태 */}
+              {isRecording ? (
+                <>
+                  {/* Requirement 3: 🔴 듣고 있어요 00:24 */}
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                      background: "#FEE2E2",
+                      border: "2px solid #EF4444",
+                      padding: "8px 20px",
+                      borderRadius: 22,
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 14,
+                        height: 14,
+                        borderRadius: "50%",
+                        background: "#EF4444",
+                        boxShadow: "0 0 8px #EF4444",
+                      }}
+                    />
+                    <span style={{ fontSize: 18, fontWeight: 900, color: "#991B1B" }}>
+                      듣고 있어요
+                    </span>
+                    <span style={{ fontSize: 18, fontWeight: 900, color: "#991B1B" }}>
+                      {formatTime(recordSeconds)}
+                    </span>
+                  </div>
+
+                  {/* 중앙 큰 마이크 (녹음 애니메이션) */}
+                  <div
+                    style={{
+                      width: 104,
+                      height: 104,
+                      borderRadius: "50%",
+                      background: "#26734D",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 50,
+                      color: "#FFFFFF",
+                      boxShadow: "0 8px 32px rgba(38,115,77,0.38)",
+                    }}
+                  >
+                    🎤
+                  </div>
+
+                  <div>
+                    <p style={{ fontSize: 20, fontWeight: 900, color: "#252A2D", margin: 0 }}>
+                      천천히 편하게 말씀해 주세요
+                    </p>
+                    <p style={{ fontSize: 16, fontWeight: 700, color: "#626A6E", margin: "6px 0 0" }}>
+                      말씀이 끝나시면 아래 [녹음 끝내기]를 눌러주세요
+                    </p>
+                  </div>
+
+                  {/* 실시간 음성인식 텍스트 */}
+                  {liveTranscript && (
+                    <div
+                      style={{
+                        width: "100%",
+                        background: "#FFFFFF",
+                        border: "2px solid #26734D",
+                        borderRadius: 16,
+                        padding: "12px 14px",
+                        fontSize: 18,
+                        fontWeight: 700,
+                        color: "#1F5D40",
+                        lineHeight: 1.45,
+                        boxSizing: "border-box",
+                      }}
+                    >
+                      “{liveTranscript}”
+                    </div>
+                  )}
+
+                  {/* Requirement 3: [ ■ 녹음 끝내기 ] 버튼 */}
+                  <button
+                    onClick={handleStopVoice}
+                    aria-label="녹음 끝내기"
+                    style={{
+                      width: "100%",
+                      minHeight: 66,
+                      borderRadius: 18,
+                      background: "#E53E3E",
+                      border: "none",
+                      color: "#FFFFFF",
+                      fontSize: 20,
+                      fontWeight: 900,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 10,
+                      cursor: "pointer",
+                      boxShadow: "0 6px 18px rgba(229,62,62,0.32)",
+                    }}
+                  >
+                    <span style={{ fontSize: 22 }}>■</span>
+                    <span>녹음 끝내기</span>
+                  </button>
+                </>
+              ) : (
+                /* 녹음 시작 전 상태: 큰 마이크 버튼과 안내 문구 */
+                <>
+                  <button
+                    onClick={handleStartVoice}
+                    aria-label="녹음 시작하기"
+                    style={{
+                      width: 104,
+                      height: 104,
+                      borderRadius: "50%",
+                      background: "#26734D",
+                      border: "none",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 50,
+                      color: "#FFFFFF",
+                      boxShadow: "0 8px 30px rgba(38,115,77,0.32)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    🎤
+                  </button>
+
+                  {/* Requirement 3 문구 */}
+                  <div>
+                    <p style={{ fontSize: 21, fontWeight: 900, color: "#252A2D", margin: 0, lineHeight: 1.35 }}>
+                      버튼을 누르고<br />천천히 말씀해 주세요
+                    </p>
+                    <p style={{ fontSize: 16, fontWeight: 700, color: "#626A6E", margin: "8px 0 0" }}>
+                      준비가 되시면 아래 [녹음 시작]을 눌러주세요
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={handleStartVoice}
+                    aria-label="녹음 시작하기"
+                    style={{
+                      width: "100%",
+                      minHeight: 64,
+                      borderRadius: 18,
+                      background: "#26734D",
+                      border: "none",
+                      color: "#FFFFFF",
+                      fontSize: 20,
+                      fontWeight: 900,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 10,
+                      cursor: "pointer",
+                      boxShadow: "0 6px 18px rgba(38,115,77,0.28)",
+                    }}
+                  >
+                    <span>🎤</span>
+                    <span>녹음 시작하기</span>
+                  </button>
+                </>
               )}
 
-              {/* 녹음 끝내기 버튼 */}
-              <button
-                onClick={handleStopVoice}
-                aria-label="녹음 끝내기"
-                style={{
-                  width: "100%",
-                  minHeight: 64,
-                  borderRadius: 18,
-                  background: "#E53E3E",
-                  border: "none",
-                  color: "#FFFFFF",
-                  fontSize: 20,
-                  fontWeight: 900,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 10,
-                  cursor: "pointer",
-                  boxShadow: "0 6px 18px rgba(229,62,62,0.3)",
-                }}
-              >
-                <span style={{ fontSize: 22 }}>■</span>
-                <span>녹음 끝내기</span>
-              </button>
-
+              {/* 하단 취소 및 뒤로 가기 */}
               <button
                 onClick={handleCancelVoice}
                 style={{
-                  background: "none",
-                  border: "none",
-                  fontSize: 15,
-                  fontWeight: 700,
+                  height: 48,
+                  paddingInline: 16,
+                  borderRadius: 14,
+                  background: "#F1F5F3",
+                  border: "1.5px solid #D9DEDA",
+                  fontSize: 16,
+                  fontWeight: 800,
                   color: "#626A6E",
                   cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
                 }}
               >
-                취소하고 돌아가기
+                <span>◀</span>
+                <span>취소하고 돌아가기</span>
               </button>
             </div>
           )}
 
           {/* ════════════════════════════════════════════════════
-              3. 음성 → 텍스트 확인 화면 (Step: voice_confirm)
+              3. 음성 → 텍스트 확인 화면 (Requirement 4: voice_confirm)
           ════════════════════════════════════════════════════ */}
           {step === "voice_confirm" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* Requirement 4 제목: 🌷 이렇게 기록할까요? */}
               <div style={{ textAlign: "center" }}>
-                <span style={{ fontSize: 24 }}>🌷</span>
+                <span style={{ fontSize: 28 }}>🌷</span>
                 <h3 style={{ fontSize: 22, fontWeight: 900, color: "#1F5D40", margin: "4px 0 0" }}>
                   이렇게 기록할까요?
                 </h3>
-                <p style={{ fontSize: 15, fontWeight: 700, color: "#626A6E", margin: "4px 0 0" }}>
-                  내용을 확인하시고 저장해 주세요
+                <p style={{ fontSize: 16, fontWeight: 700, color: "#626A6E", margin: "4px 0 0" }}>
+                  말씀하신 내용을 확인하시고 저장해 주세요
                 </p>
               </div>
 
-              {/* 변환된 텍스트 카드 (수정 가능) */}
+              {/* 내용 확인 카드 (수정 가능) */}
               <div
                 style={{
                   background: "#FFFFFF",
@@ -508,7 +680,7 @@ export function MemoryRecordModal({
                   boxShadow: "0 4px 14px rgba(38,115,77,0.1)",
                 }}
               >
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#26734D", marginBottom: 6 }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: "#26734D", marginBottom: 6 }}>
                   할머니의 이야기 👵
                 </div>
 
@@ -521,21 +693,22 @@ export function MemoryRecordModal({
                       width: "100%",
                       borderRadius: 14,
                       border: "2px solid #26734D",
-                      padding: "10px",
-                      fontSize: 18,
+                      padding: "12px",
+                      fontSize: 19,
                       fontWeight: 700,
-                      lineHeight: 1.45,
+                      lineHeight: 1.5,
                       outline: "none",
                       boxSizing: "border-box",
+                      background: "#FFFDF7",
                     }}
                   />
                 ) : (
                   <p
                     style={{
-                      fontSize: 19,
+                      fontSize: 20,
                       fontWeight: 800,
                       color: "#252A2D",
-                      lineHeight: 1.5,
+                      lineHeight: 1.55,
                       margin: 0,
                       wordBreak: "keep-all",
                     }}
@@ -543,17 +716,46 @@ export function MemoryRecordModal({
                     “{confirmedText}”
                   </p>
                 )}
+
+                {/* 실제 녹음된 원본 음성이 있는 경우 미리듣기 지원 */}
+                {audioDataUrl && (
+                  <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px dashed #D9DEDA" }}>
+                    <button
+                      onClick={handleTogglePreviewAudio}
+                      aria-label="방금 녹음한 목소리 들어보기"
+                      style={{
+                        width: "100%",
+                        height: 46,
+                        borderRadius: 12,
+                        background: isPlayingPreview ? "#D1EBE0" : "#E7F4EC",
+                        border: "1.5px solid #26734D",
+                        color: "#1F5D40",
+                        fontSize: 15,
+                        fontWeight: 800,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 6,
+                        cursor: "pointer",
+                      }}
+                    >
+                      <span>{isPlayingPreview ? "⏹" : "🔊"}</span>
+                      <span>{isPlayingPreview ? "목소리 멈추기" : "방금 녹음한 내 목소리 들어보기"}</span>
+                    </button>
+                  </div>
+                )}
               </div>
 
-              {/* 버튼 그룹 */}
+              {/* Requirement 4: 버튼 3종 */}
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {/* 1. 기억에 저장 (Primary) */}
+                {/* 1. [ 💾 기억에 저장 ] (Primary, 가장 큼) */}
                 <button
                   onClick={() => handleSave("voice", confirmedText)}
+                  disabled={!confirmedText.trim()}
                   aria-label="기억에 저장"
                   style={{
                     width: "100%",
-                    minHeight: 64,
+                    minHeight: 66,
                     borderRadius: 18,
                     background: "#26734D",
                     border: "none",
@@ -568,47 +770,56 @@ export function MemoryRecordModal({
                     boxShadow: "0 6px 18px rgba(38,115,77,0.28)",
                   }}
                 >
-                  <span>💾</span>
+                  <span style={{ fontSize: 22 }}>💾</span>
                   <span>기억에 저장</span>
                 </button>
 
+                {/* 2. [ 🎤 다시 말하기 ] & 3. [ ✏️ 내용 고치기 ] */}
                 <div style={{ display: "flex", gap: 8 }}>
-                  {/* 2. 다시 말하기 */}
                   <button
                     onClick={handleStartVoice}
                     aria-label="다시 말하기"
                     style={{
                       flex: 1,
-                      minHeight: 52,
+                      minHeight: 56,
                       borderRadius: 16,
                       background: "#FFFFFF",
                       border: "2px solid #D9DEDA",
                       color: "#252A2D",
-                      fontSize: 16,
+                      fontSize: 17,
                       fontWeight: 800,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6,
                       cursor: "pointer",
                     }}
                   >
-                    🎤 다시 말하기
+                    <span>🎤</span>
+                    <span>다시 말하기</span>
                   </button>
 
-                  {/* 3. 내용 고치기 */}
                   <button
                     onClick={() => setIsEditingText(!isEditingText)}
                     aria-label="내용 고치기"
                     style={{
                       flex: 1,
-                      minHeight: 52,
+                      minHeight: 56,
                       borderRadius: 16,
                       background: isEditingText ? "#E7F4EC" : "#FFFFFF",
                       border: "2px solid #26734D",
                       color: "#1F5D40",
-                      fontSize: 16,
+                      fontSize: 17,
                       fontWeight: 800,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6,
                       cursor: "pointer",
                     }}
                   >
-                    ✏️ {isEditingText ? "수정 완료" : "내용 고치기"}
+                    <span>✏️</span>
+                    <span>{isEditingText ? "수정 완료" : "내용 고치기"}</span>
                   </button>
                 </div>
               </div>
@@ -616,21 +827,22 @@ export function MemoryRecordModal({
           )}
 
           {/* ════════════════════════════════════════════════════
-              4. 글로 기록하기 화면 (Step: text_input)
+              4. 글로 기록하기 화면 (Requirement 5: text_input)
           ════════════════════════════════════════════════════ */}
           {step === "text_input" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {/* Requirement 5 제목: ✏️ 오늘 있었던 일을 적어보세요 */}
               <div style={{ textAlign: "center" }}>
-                <span style={{ fontSize: 24 }}>✏️</span>
+                <span style={{ fontSize: 26 }}>✏️</span>
                 <h3 style={{ fontSize: 21, fontWeight: 900, color: "#1F5D40", margin: "4px 0 0" }}>
                   오늘 있었던 일을 적어보세요
                 </h3>
-                <p style={{ fontSize: 15, fontWeight: 700, color: "#D97706", margin: "4px 0 0" }}>
+                <p style={{ fontSize: 16, fontWeight: 800, color: "#D97706", margin: "6px 0 0" }}>
                   “{currentQuestion}”
                 </p>
               </div>
 
-              {/* 큰 텍스트 입력창 (최소 높이 180px, 글자 18~20px) */}
+              {/* Requirement 5 입력창: 최소 높이 180px, 글자 크기 18~20px */}
               <textarea
                 value={manualText}
                 onChange={(e) => setManualText(e.target.value)}
@@ -644,7 +856,7 @@ export function MemoryRecordModal({
                   padding: "16px",
                   fontSize: 19,
                   fontWeight: 700,
-                  lineHeight: 1.5,
+                  lineHeight: 1.55,
                   outline: "none",
                   boxSizing: "border-box",
                   resize: "none",
@@ -652,15 +864,15 @@ export function MemoryRecordModal({
                 }}
               />
 
-              {/* 하단 대형 저장 버튼 */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {/* Requirement 5: 하단 대형 [ 💾 기억에 저장 ] 버튼 */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <button
                   onClick={() => handleSave("text", manualText)}
                   disabled={!manualText.trim()}
                   aria-label="기억에 저장"
                   style={{
                     width: "100%",
-                    minHeight: 64,
+                    minHeight: 66,
                     borderRadius: 18,
                     background: manualText.trim() ? "#26734D" : "#CBD5E1",
                     border: "none",
@@ -675,23 +887,29 @@ export function MemoryRecordModal({
                     boxShadow: manualText.trim() ? "0 6px 18px rgba(38,115,77,0.28)" : "none",
                   }}
                 >
-                  <span>💾</span>
+                  <span style={{ fontSize: 22 }}>💾</span>
                   <span>기억에 저장</span>
                 </button>
 
                 <button
                   onClick={() => setStep("choose")}
                   style={{
-                    background: "none",
-                    border: "none",
-                    fontSize: 15,
-                    fontWeight: 700,
+                    height: 48,
+                    borderRadius: 14,
+                    background: "#F1F5F3",
+                    border: "1.5px solid #D9DEDA",
+                    fontSize: 16,
+                    fontWeight: 800,
                     color: "#626A6E",
                     cursor: "pointer",
-                    padding: "8px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
                   }}
                 >
-                  ◀ 다른 방법으로 기록하기
+                  <span>◀</span>
+                  <span>다른 방법으로 기록하기</span>
                 </button>
               </div>
             </div>
