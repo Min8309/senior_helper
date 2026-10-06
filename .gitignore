@@ -18,3 +18,7 @@ logs/
 # beside it.
 /.plugins/
 /.opencode-skills/
+
+# Automated browser test artifacts
+/test-results/
+/playwright-report/

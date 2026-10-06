@@ -135,6 +135,8 @@ export function GuideScreen({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+  const voiceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(true);
 
   const isGirl = characterMode === "girl" || characterMode === "granddaughter";
 
@@ -197,7 +199,10 @@ export function GuideScreen({
   };
 
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
+      if (voiceTimerRef.current) clearTimeout(voiceTimerRef.current);
       stopGuideVoice();
     };
   }, []);
@@ -221,18 +226,6 @@ export function GuideScreen({
     reader.readAsDataURL(file);
   };
 
-  // 샘플 사진 체험
-  const handleSampleTest = async () => {
-    const sampleUrl = "/img/1.jpg";
-    try {
-      const res = await fetch(sampleUrl);
-      const blob = await res.blob();
-      handlePhotoCaptured(blob, sampleUrl);
-    } catch {
-      handlePhotoCaptured(new Blob(), sampleUrl);
-    }
-  };
-
   // 2. [AI에게 물어보기] 클릭 시: Hugging Face VLM 분석 호출 (Requirement 12, 13, 14, 15)
   const handleConfirmAndAnalyze = async () => {
     if (!selectedFile) return;
@@ -241,9 +234,11 @@ export function GuideScreen({
     try {
       const result = await analyzeApplianceImage(selectedFile, isGirl ? "granddaughter" : "grandson");
 
+      if (!mountedRef.current) return;
+
       // 사진 불분명 또는 실패 (Requirement 15, 21)
       if (!result.success || result.needs_new_photo || result.instructions.length === 0) {
-        setIsPhotoUnclear(true);
+        setIsPhotoUnclear(result.needs_new_photo);
         setErrorMessage(
           result.error_guide || "버튼이 잘 보이도록 조금 더 가까이에서 다시 찍어주세요."
         );
@@ -267,7 +262,8 @@ export function GuideScreen({
         result.instructions,
         isGirl ? "granddaughter" : "grandson"
       );
-      setTimeout(() => {
+      voiceTimerRef.current = setTimeout(() => {
+        if (!mountedRef.current) return;
         playGuideVoice(ttsScript, result.audio_base64);
       }, 500);
     } catch (err) {
@@ -280,6 +276,7 @@ export function GuideScreen({
 
   // 재촬영 처리
   const handleRetryPhoto = () => {
+    if (voiceTimerRef.current) clearTimeout(voiceTimerRef.current);
     stopGuideVoice();
     setSelectedFile(null);
     setImagePreview(null);
@@ -464,28 +461,7 @@ export function GuideScreen({
               </span>
             </button>
 
-            {/* 샘플 체험 버튼 */}
-            <button
-              onClick={handleSampleTest}
-              aria-label="샘플 리모컨 사진으로 체험하기"
-              style={{
-                width: "100%",
-                minHeight: 56,
-                borderRadius: 18,
-                background: "#FFF8ED",
-                border: "2px solid #F2A23A66",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
-                cursor: "pointer",
-              }}
-            >
-              <span style={{ fontSize: 20 }}>💡</span>
-              <span style={{ fontSize: 16, fontWeight: 800, color: "#92400E" }}>
-                샘플 리모컨 사진으로 먼저 해보기
-              </span>
-            </button>
+
           </div>
 
           <div style={{ padding: "0 20px 20px" }}>

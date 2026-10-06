@@ -1,6 +1,6 @@
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import { ApplianceHelpLog, CharacterMode } from "../types/memory";
-import { getCurrentUserId } from "./userService";
+import { getCurrentUserId, getAuthenticatedUserId } from "./userService";
 
 // 환경변수 기반 VLM 모델 및 웹훅 설정 (Requirement 12, 13)
 // 주의: Hugging Face Token은 클라이언트 코드에 노출하지 않고 n8n / 백엔드를 통해서만 호출
@@ -75,53 +75,28 @@ export async function analyzeApplianceImage(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-    const response = await fetch(N8N_ANALYZE_WEBHOOK_URL, {
-      method: "POST",
-      body: formData,
-      signal: controller.signal,
-    }).catch(() => null);
-
-    clearTimeout(timeoutId);
-
-    if (response && response.ok) {
-      const data = await response.json();
-      // 표준 응답 형식 검증 및 변환
-      if (data && typeof data === "object") {
-        return {
-          success: Boolean(data.success),
-          device_name: data.device_name || data.device || "전자기기",
-          confidence: data.confidence ?? 0.9,
-          instructions: Array.isArray(data.instructions) ? data.instructions : [],
-          needs_new_photo: Boolean(data.needs_new_photo),
-          error_guide: data.error_guide || data.fallback_message || "",
-          audio_base64: data.audio_base64,
-        };
-      }
+    let response: Response;
+    try {
+      response = await fetch(N8N_ANALYZE_WEBHOOK_URL, { method: "POST", body: formData, signal: controller.signal });
+    } finally { clearTimeout(timeoutId); }
+    if (!response.ok) throw new Error("분석 서버가 응답하지 않습니다.");
+    const data = await response.json();
+    if (data?.success !== true || data.needs_new_photo === true) {
+      return { success: false, device_name: "", instructions: [], needs_new_photo: data?.needs_new_photo === true,
+        error_guide: typeof data?.error_guide === "string" ? data.error_guide : "사진에서 기기를 확인하지 못했어요. 다시 찍어주세요." };
     }
-  } catch (err) {
-    console.warn("n8n VLM 웹훅 호출 실패 또는 미응답, 안전한 온디바이스 규칙으로 전환:", err);
+    if (typeof data.device_name !== "string" || !data.device_name.trim() ||
+      !Array.isArray(data.instructions) || data.instructions.length < 1 || data.instructions.length > 3 ||
+      !data.instructions.every((step: unknown) => typeof step === "string" && step.trim().length > 0)) {
+      throw new Error("분석 응답 형식이 올바르지 않습니다.");
+    }
+    return { success: true, device_name: data.device_name, instructions: data.instructions,
+      needs_new_photo: false, error_guide: "", audio_base64: typeof data.audio_base64 === "string" ? data.audio_base64 : undefined };
+  } catch (error) {
+    console.warn("사진 분석 실패", error);
+    return { success: false, device_name: "", instructions: [], needs_new_photo: false,
+      error_guide: "사진 분석 서비스에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요. 확인되지 않은 기기 조작은 안내하지 않아요." };
   }
-
-  // 온디바이스 시니어 안전 분석 규칙 (웹훅 미연결 또는 실패 시 부드럽게 대체)
-  return createSeniorFriendlyFallbackResult(isGirl);
-}
-
-/**
- * 웹훅 미연결/오프라인 환경용 시니어 친화적 기본 응답
- */
-function createSeniorFriendlyFallbackResult(isGirl: boolean): VlmAnalysisResult {
-  return {
-    success: true,
-    device_name: "에어컨 리모컨",
-    confidence: 0.92,
-    instructions: [
-      "1. 오른쪽 위의 [전원] 단추를 한 번 꾹 누르세요.",
-      "2. 가운데 온도 조절 단추로 24도를 맞추세요.",
-      "3. 바람이 시원하게 나오면 바람 세기 단추를 눌러 조절하세요.",
-    ],
-    needs_new_photo: false,
-    error_guide: "",
-  };
 }
 
 /**
@@ -160,7 +135,7 @@ export async function saveApplianceHelpLog(params: {
   modelName?: string;
 }): Promise<ApplianceHelpLog> {
   const userId = params.userId || getCurrentUserId();
-  const id = `help_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
 
   const record: ApplianceHelpLog = {
@@ -182,9 +157,11 @@ export async function saveApplianceHelpLog(params: {
   }
 
   try {
+    const authenticatedId = await getAuthenticatedUserId();
+    if (!authenticatedId) return record;
     const { error } = await supabase.from("appliance_help_logs").insert({
       id: record.id,
-      user_id: record.user_id,
+      user_id: authenticatedId,
       device_name: record.device_name,
       question: record.question,
       instructions: record.instructions,
@@ -201,38 +178,4 @@ export async function saveApplianceHelpLog(params: {
   }
 
   return record;
-}
-
-/**
- * ── 4. 생활 도움 기록 목록 조회 ──────────────────────────────────────────
- */
-export async function getApplianceHelpLogs(userId?: string): Promise<ApplianceHelpLog[]> {
-  const targetUser = userId || getCurrentUserId();
-  const localList = getLocalApplianceLogs();
-
-  if (!isSupabaseConfigured || !supabase) {
-    return localList;
-  }
-
-  try {
-    const { data, error } = await supabase
-      .from("appliance_help_logs")
-      .select("*")
-      .eq("user_id", targetUser)
-      .order("created_at", { ascending: false })
-      .limit(20);
-
-    if (error) {
-      console.warn("Supabase 생활 도움 로그 조회 실패:", error.message);
-      return localList;
-    }
-
-    if (data && data.length > 0) {
-      return data as ApplianceHelpLog[];
-    }
-  } catch (err) {
-    console.warn("생활 도움 로그 조회 예외:", err);
-  }
-
-  return localList;
 }

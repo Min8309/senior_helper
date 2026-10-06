@@ -1,6 +1,6 @@
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import { BrainTrainingLog } from "../types/memory";
-import { getCurrentUserId } from "./userService";
+import { getCurrentUserId, getAuthenticatedUserId } from "./userService";
 
 const LOCAL_STORAGE_KEY = "senior_helper_training_logs_v1";
 
@@ -42,7 +42,7 @@ export async function saveTrainingLog(
   }
 ): Promise<BrainTrainingLog> {
   const userId = log.user_id || getCurrentUserId();
-  const id = log.id || `training_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const id = log.id || crypto.randomUUID();
   const createdAt = log.created_at || new Date().toISOString();
 
   const record: BrainTrainingLog = {
@@ -64,9 +64,11 @@ export async function saveTrainingLog(
   }
 
   try {
+    const authenticatedId = await getAuthenticatedUserId();
+    if (!authenticatedId) return record;
     const { error } = await supabase.from("brain_training_logs").insert({
       id: record.id,
-      user_id: record.user_id,
+      user_id: authenticatedId,
       training_type: record.training_type,
       level: record.level,
       duration_seconds: record.duration_seconds,
@@ -83,39 +85,4 @@ export async function saveTrainingLog(
   }
 
   return record;
-}
-
-/**
- * ── 2. 두뇌운동 기록 목록 조회 ──────────────────────────────────────────
- * - 현재 사용자 user_id 기준으로 최신순 조회
- */
-export async function getTrainingLogs(userId?: string): Promise<BrainTrainingLog[]> {
-  const targetUser = userId || getCurrentUserId();
-  const localList = getLocalTrainingLogs();
-
-  if (!isSupabaseConfigured || !supabase) {
-    return localList;
-  }
-
-  try {
-    const { data, error } = await supabase
-      .from("brain_training_logs")
-      .select("*")
-      .eq("user_id", targetUser)
-      .order("created_at", { ascending: false })
-      .limit(30);
-
-    if (error) {
-      console.warn("Supabase 두뇌운동 로그 조회 실패:", error.message);
-      return localList;
-    }
-
-    if (data && data.length > 0) {
-      return data as BrainTrainingLog[];
-    }
-  } catch (err) {
-    console.warn("두뇌운동 로그 조회 예외:", err);
-  }
-
-  return localList;
 }

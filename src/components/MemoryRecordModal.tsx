@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { localDateKey } from "../utils/date";
 import { CharacterMode } from "../types/memory";
 import { recordVoice, stopRecording, cancelRecording } from "../services/voiceRecordService";
 import { formatDisplayText, generateMemoryTitle } from "../services/memoryStorage";
@@ -54,10 +55,17 @@ export function MemoryRecordModal({
   const [isSaving, setIsSaving] = useState(false);
 
   const timerRef = useRef<any>(null);
+  const sessionRef = useRef(0);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  useEffect(() => {
+    return () => { sessionRef.current++; cancelRecording(); previewAudioRef.current?.pause(); };
+  }, [isOpen]);
 
   // 모달이 열릴 때 초기화
   useEffect(() => {
     if (isOpen) {
+      setErrorMessage("");
       setStep("choose");
       setIsRecording(false);
       setRecordSeconds(0);
@@ -102,11 +110,15 @@ export function MemoryRecordModal({
     setRecordSeconds(0);
     setIsRecording(true);
 
+    const session = sessionRef.current;
     const started = await recordVoice((transcript) => {
       setLiveTranscript(transcript);
     });
 
+    if (session !== sessionRef.current) return;
     if (!started) {
+      setIsRecording(false);
+      setErrorMessage("마이크를 사용할 수 없어요. 글로 남겨주세요.");
       // 마이크 권한이나 미지원 환경 시 글쓰기 화면으로 전환
       setStep("text_input");
     }
@@ -115,12 +127,17 @@ export function MemoryRecordModal({
   // 2. 녹음 종료 (Requirement 3 & 4)
   const handleStopVoice = async () => {
     setIsRecording(false);
+    const session = sessionRef.current;
     const result = await stopRecording();
+    if (session !== sessionRef.current) return;
 
     // 음성 텍스트 확인 (원문 및 다듬어진 문장 준비)
     const rawTranscript = (result.transcript || liveTranscript || "").trim();
-    const fallbackText = "오늘 공원에 가서 친구를 만나고 같이 산책했어요.";
-    const textToShow = rawTranscript ? formatDisplayText(rawTranscript) : fallbackText;
+    const textToShow = rawTranscript ? formatDisplayText(rawTranscript) : "";
+    if (!rawTranscript) {
+      setErrorMessage("말씀을 글로 알아듣지 못했어요. 내용을 직접 입력하거나 다시 녹음해 주세요.");
+      setIsEditingText(true);
+    }
 
     setConfirmedText(textToShow);
     setAudioDataUrl(result.audioDataUrl);
@@ -166,7 +183,7 @@ export function MemoryRecordModal({
     if (!trimmed || isSaving) return;
 
     setIsSaving(true);
-    const dateStr = today.toISOString().split("T")[0];
+    const dateStr = localDateKey(today);
     const month = today.getMonth() + 1;
     const date = today.getDate();
     const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
@@ -191,6 +208,8 @@ export function MemoryRecordModal({
       });
     } catch (err) {
       console.warn("기억 저장 처리:", err);
+      setErrorMessage("저장하지 못했어요. 기기 저장 공간을 확인하고 다시 시도해 주세요.");
+      return;
     } finally {
       setIsSaving(false);
     }
@@ -237,6 +256,7 @@ export function MemoryRecordModal({
           maxHeight: "92vh",
         }}
       >
+        {errorMessage && <p role="alert" style={{ padding: "12px 18px", margin: 0, color: "#9A3412", fontSize: 17 }}>{errorMessage}</p>}
         {/* ── 상단 닫기 헤더 바 ── */}
         <div
           style={{
@@ -257,7 +277,9 @@ export function MemoryRecordModal({
 
           <button
             onClick={() => {
-              if (isRecording) cancelRecording();
+              sessionRef.current++;
+              cancelRecording();
+              setIsRecording(false);
               if (previewAudioRef.current) previewAudioRef.current.pause();
               onClose();
             }}

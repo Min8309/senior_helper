@@ -1,8 +1,8 @@
+import { localDateLabel } from "./utils/date";
 import { useState, useEffect, useRef, useCallback } from "react";
 import boyVideo from "../img/01.mp4";
 import girlVideo from "../img/02.mp4";
 import { AiAskCard } from "./components/AiAskCard";
-import { TodayMemoryCard } from "./components/TodayMemoryCard";
 import { MemoryScreen } from "./components/MemoryScreen";
 import { GuideScreen } from "./components/GuideScreen";
 import { NameEditModal } from "./components/NameEditModal";
@@ -11,24 +11,6 @@ import { CozySunlitBackdrop } from "./components/CozySunlitBackdrop";
 import { BottomNavBar } from "./components/BottomNavBar";
 import cozyRoomBg from "./assets/cozy_room_bg.jpg";
 import { saveTrainingLog } from "./services/trainingService";
-
-// ─── Shared icons ─────────────────────────────────────────────────────────────
-
-function SunIcon() {
-  return (
-    <svg width="36" height="36" viewBox="0 0 36 36" fill="none" aria-hidden="true">
-      <circle cx="18" cy="18" r="8" fill="#F59E0B" />
-      {[0, 45, 90, 135, 180, 225, 270, 315].map((angle) => (
-        <line key={angle}
-          x1={18 + Math.cos((angle * Math.PI) / 180) * 11}
-          y1={18 + Math.sin((angle * Math.PI) / 180) * 11}
-          x2={18 + Math.cos((angle * Math.PI) / 180) * 16}
-          y2={18 + Math.sin((angle * Math.PI) / 180) * 16}
-          stroke="#F59E0B" strokeWidth="2.5" strokeLinecap="round" />
-      ))}
-    </svg>
-  );
-}
 
 function VolumeIcon({ color = "#1A1A1A", size = 28 }: { color?: string; size?: number }) {
   return (
@@ -48,141 +30,11 @@ function SpeakerIcon({ color = "#2E7D32" }: { color?: string }) {
   );
 }
 
-function CameraIcon() {
-  return (
-    <svg width="26" height="26" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-      <rect x="2" y="7" width="24" height="18" rx="3" fill="white" fillOpacity="0.25" stroke="white" strokeWidth="2" />
-      <circle cx="14" cy="16" r="5" stroke="white" strokeWidth="2.2" />
-      <path d="M10 7l2-3h4l2 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function BrainIcon() {
-  return (
-    <svg width="26" height="26" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-      <path d="M14 5C11 5 9 7 9 9.5c0 1-.3 1.8-.8 2.5C7 13 6 14.5 6 16.5c0 2.5 2 4.5 4.5 4.5H14" stroke="white" strokeWidth="2.2" strokeLinecap="round" />
-      <path d="M14 5c3 0 5 2 5 4.5c0 1 .3 1.8.8 2.5C21 13 22 14.5 22 16.5c0 2.5-2 4.5-4.5 4.5H14" stroke="white" strokeWidth="2.2" strokeLinecap="round" />
-      <line x1="14" y1="5" x2="14" y2="21" stroke="white" strokeWidth="2" strokeLinecap="round" />
-      <path d="M9 12.5c1.5.5 3 .5 5 0" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
-      <path d="M19 12.5c-1.5.5-3 .5-5 0" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 function ChevronLeft() {
   return (
     <svg width="24" height="24" viewBox="0 0 26 26" fill="none" aria-hidden="true">
       <path d="M16 6L9 13L16 20" stroke="#1E293B" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
-  );
-}
-
-function HomeIcon() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 26 26" fill="none" aria-hidden="true">
-      <path d="M3 11L13 3L23 11V22a1 1 0 0 1-1 1H16v-6h-6v6H4a1 1 0 0 1-1-1V11Z" stroke="white" strokeWidth="2.2" strokeLinejoin="round" fill="none" />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg width="36" height="36" viewBox="0 0 36 36" fill="none" aria-hidden="true">
-      <circle cx="18" cy="18" r="18" fill="#10B981" />
-      <path d="M10 18L16 24L26 12" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-// ─── Greeting screen illustration (fallback) ──────────────────────────────────
-
-function GrandchildIllustration() {
-  return (
-    <svg width="150" height="150" viewBox="0 0 160 160" fill="none" aria-label="밝게 웃는 어린이">
-      <circle cx="80" cy="80" r="78" fill="#FFF9E6" />
-      <circle cx="126" cy="34" r="14" fill="#FCD34D" />
-      {[0, 45, 90, 135, 180, 225, 270, 315].map((a) => (
-        <line key={a}
-          x1={126 + Math.cos((a * Math.PI) / 180) * 17}
-          y1={34 + Math.sin((a * Math.PI) / 180) * 17}
-          x2={126 + Math.cos((a * Math.PI) / 180) * 23}
-          y2={34 + Math.sin((a * Math.PI) / 180) * 23}
-          stroke="#F59E0B" strokeWidth="2.5" strokeLinecap="round" />
-      ))}
-      <ellipse cx="80" cy="128" rx="28" ry="14" fill="#FDE68A" />
-      <path d="M56 115 Q60 100 80 100 Q100 100 104 115 L104 130 Q80 138 56 130 Z" fill="#BFDBFE" />
-      <rect x="74" y="92" width="12" height="10" rx="4" fill="#FBBF24" />
-      <ellipse cx="80" cy="76" rx="26" ry="28" fill="#FBBF24" />
-      <path d="M54 68 Q56 44 80 44 Q104 44 106 68" fill="#7C3AED" />
-      <ellipse cx="80" cy="48" rx="26" ry="10" fill="#7C3AED" />
-      <ellipse cx="70" cy="76" rx="4" ry="4.5" fill="white" />
-      <ellipse cx="90" cy="76" rx="4" ry="4.5" fill="white" />
-      <circle cx="71" cy="77" r="2.5" fill="#1A1A1A" />
-      <circle cx="91" cy="77" r="2.5" fill="#1A1A1A" />
-      <circle cx="72" cy="75.5" r="1" fill="white" />
-      <circle cx="92" cy="75.5" r="1" fill="white" />
-      <path d="M68 86 Q80 96 92 86" stroke="#C2410C" strokeWidth="2.5" strokeLinecap="round" fill="none" />
-      <ellipse cx="61" cy="84" rx="6" ry="4" fill="#FCA5A5" fillOpacity="0.6" />
-      <ellipse cx="99" cy="84" rx="6" ry="4" fill="#FCA5A5" fillOpacity="0.6" />
-      <path d="M56 112 Q44 106 42 98 Q40 90 46 88" stroke="#FBBF24" strokeWidth="8" strokeLinecap="round" fill="none" />
-      <path d="M104 112 Q116 106 118 98 Q120 90 114 88" stroke="#FBBF24" strokeWidth="8" strokeLinecap="round" fill="none" />
-      <text x="28" y="72" fontSize="14" fill="#F43F5E">♥</text>
-      <text x="118" y="62" fontSize="12" fill="#F43F5E">♥</text>
-    </svg>
-  );
-}
-
-// ─── Remote illustration ──────────────────────────────────────────────────────
-
-function RemoteIllustration() {
-  return (
-    <svg width="100" height="136" viewBox="0 0 100 136" fill="none" aria-label="에어컨 리모컨">
-      <rect x="4" y="4" width="92" height="128" rx="20" fill="#E2E8F0" stroke="#94A3B8" strokeWidth="2" />
-      <rect x="12" y="14" width="76" height="36" rx="10" fill="#1E293B" />
-      <text x="50" y="37" textAnchor="middle" fontSize="11" fill="#38BDF8" fontWeight="700" fontFamily="monospace">24°C</text>
-      <circle cx="50" cy="71" r="13" fill="#EA580C" stroke="#C2410C" strokeWidth="2" />
-      <text x="50" y="76" textAnchor="middle" fontSize="11" fill="white" fontWeight="800">전원</text>
-      <rect x="14" y="90" width="30" height="20" rx="6" fill="#3B82F6" />
-      <text x="29" y="104" textAnchor="middle" fontSize="13" fill="white" fontWeight="700">▲</text>
-      <rect x="56" y="90" width="30" height="20" rx="6" fill="#3B82F6" />
-      <text x="71" y="104" textAnchor="middle" fontSize="13" fill="white" fontWeight="700">▼</text>
-      <text x="29" y="125" textAnchor="middle" fontSize="8" fill="#64748B">온도올림</text>
-      <text x="71" y="125" textAnchor="middle" fontSize="8" fill="#64748B">온도내림</text>
-      <rect x="26" y="112" width="48" height="16" rx="5" fill="#6366F1" />
-      <text x="50" y="123" textAnchor="middle" fontSize="9" fill="white" fontWeight="700">바람세기</text>
-    </svg>
-  );
-}
-
-// ─── Audio wave animation ─────────────────────────────────────────────────────
-
-function AudioWave({ active }: { active: boolean }) {
-  const bars = [0.4, 0.7, 1.0, 0.85, 0.55, 0.9, 0.65, 0.45, 0.8, 0.6, 1.0, 0.5];
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 3, height: 32 }}>
-      {bars.map((h, i) => (
-        <div key={i} style={{
-          width: 4, borderRadius: 2, background: active ? "#1D4ED8" : "#94A3B8",
-          transformOrigin: "center", height: active ? `${h * 100}%` : "30%",
-          animation: active ? `wave-${i % 4} 0.8s ease-in-out infinite alternate` : "none",
-          animationDelay: `${i * 0.07}s`, transition: "height 0.3s ease, background 0.3s",
-        }} />
-      ))}
-    </div>
-  );
-}
-
-// ─── Step card (guide screen) ─────────────────────────────────────────────────
-
-function StepCard({ number, children, accent }: { number: number; children: React.ReactNode; accent: string }) {
-  return (
-    <div style={{ display: "flex", alignItems: "flex-start", gap: 16, background: "#FFFFFF", border: `2.5px solid ${accent}22`, borderLeft: `5px solid ${accent}`, borderRadius: 20, padding: "18px 18px 18px 16px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)" }}>
-      <div style={{ flexShrink: 0, width: 48, height: 48, borderRadius: "50%", background: accent, display: "flex", alignItems: "center", justifyContent: "center", marginTop: 2 }}>
-        <span style={{ fontSize: 22, fontWeight: 800, color: "#FFFFFF" }}>{number}</span>
-      </div>
-      <div style={{ flex: 1 }}>{children}</div>
-    </div>
   );
 }
 
@@ -285,12 +137,12 @@ function GreetingScreen({
             {/* 날짜와 날씨 (오늘의 온도) */}
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: 18, fontWeight: 800, color: "#4A5568" }}>
-                10월 2일 금요일
+                {localDateLabel()}
               </span>
               <span style={{ fontSize: 15, color: "#CBD5E1" }}>•</span>
               <span style={{ fontSize: 17, fontWeight: 800, color: "#26734D", display: "inline-flex", alignItems: "center", gap: 5 }}>
                 <span>☀️</span>
-                <span>맑음 21°C</span>
+                <span>날씨 정보 미연결</span>
               </span>
             </div>
 
@@ -945,7 +797,8 @@ function NumberMode({ level, onLevelComplete, onError }: { level: number; onLeve
 function TraceMode({ level, onLevelComplete, onError }: { level: number; onLevelComplete: () => void; onError: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawingRef = useRef(false);
-  const errorCooldownRef = useRef(false);
+  const previousPoint = useRef<{ x: number; y: number } | null>(null);
+  const progress = useRef(0);
 
   const trackWidth = Math.max(32, 68 - (level - 1) * 4);
   const amplitude = (level - 1) * 8;
@@ -1007,50 +860,49 @@ function TraceMode({ level, onLevelComplete, onError }: { level: number; onLevel
   }, [level, amplitude, trackWidth]);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    e.currentTarget.setPointerCapture(e.pointerId);
+    const canvas = e.currentTarget;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    if (Math.hypot(x - 45, y - canvas.height / 2) > 24) return;
+    canvas.setPointerCapture(e.pointerId);
     isDrawingRef.current = true;
+    previousPoint.current = { x: 45, y: canvas.height / 2 };
+    progress.current = 45;
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!isDrawingRef.current) return;
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    const previous = previousPoint.current;
+    if (!isDrawingRef.current || !canvas || !previous) return;
     const rect = canvas.getBoundingClientRect();
-    const px = e.clientX - rect.left;
-    const py = e.clientY - rect.top;
-
-    const startX = 45;
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
     const endX = canvas.width - 45;
     const midY = canvas.height / 2;
-    const endY = midY + Math.sin((endX - startX) / 45) * amplitude;
-
-    if (px >= startX && px <= endX) {
-      const targetY = midY + Math.sin((px - startX) / 45) * amplitude;
-      const dist = Math.abs(py - targetY);
-
-      // 이탈 판정
-      if (dist > trackWidth / 2 + 8) {
-        if (!errorCooldownRef.current) {
-          errorCooldownRef.current = true;
-          onError();
-          soundError();
-          buzz(30);
-          setTimeout(() => { errorCooldownRef.current = false; }, 350);
-        }
+    const steps = Math.max(1, Math.ceil(Math.hypot(x - previous.x, y - previous.y) / 4));
+    for (let i = 1; i <= steps; i++) {
+      const px = previous.x + (x - previous.x) * i / steps;
+      const py = previous.y + (y - previous.y) * i / steps;
+      const targetY = midY + Math.sin((Math.min(endX, Math.max(45, px)) - 45) / 45) * amplitude;
+      if (px < 21 || px > endX + 24 || Math.abs(py - targetY) > trackWidth / 2 || px < progress.current - 24) {
+        isDrawingRef.current = false;
+        onError(); soundError(); buzz(30);
+        return;
       }
+      progress.current = Math.max(progress.current, px);
     }
-
-    // 도착점 도달 판정
-    if (px >= endX - 25 && Math.abs(py - endY) < 38) {
+    previousPoint.current = { x, y };
+    const endY = midY + Math.sin((endX - 45) / 45) * amplitude;
+    if (progress.current >= endX - 8 && Math.hypot(x - endX, y - endY) < 24) {
       isDrawingRef.current = false;
-      soundSuccess();
-      buzz(45);
-      onLevelComplete();
+      soundSuccess(); buzz(45); onLevelComplete();
     }
   };
 
   const handlePointerUp = () => {
     isDrawingRef.current = false;
+    previousPoint.current = null;
   };
 
   return (
@@ -1061,6 +913,8 @@ function TraceMode({ level, onLevelComplete, onError }: { level: number; onLevel
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        onLostPointerCapture={handlePointerUp}
       />
     </div>
   );
@@ -1148,30 +1002,47 @@ function ColorMode({ level, onLevelComplete, onError, setGuideText }: { level: n
 
 // ─── 4. MEMORY GAME (10 Levels - Simon Game) ──────────────────────────────────
 
+const MEMORY_PAD_COLORS = ["#1D4ED8", "#047857", "#D97706", "#DC2626"];
+const MEMORY_PAD_TONES = [261.63, 329.63, 392.00, 523.25];
+
 function MemoryMode({ level, onLevelComplete, onError, setGuideText }: { level: number; onLevelComplete: () => void; onError: () => void; setGuideText: (t: string) => void }) {
-  const padColors = ["#1D4ED8", "#047857", "#D97706", "#DC2626"];
-  const padTones = [261.63, 329.63, 392.00, 523.25]; // 도, 미, 솔, 높은 도
+  const padColors = MEMORY_PAD_COLORS;
+  const padTones = MEMORY_PAD_TONES;
 
   const seqLength = level + 2; // 1단계: 3개 ~ 10단계: 12개
   const [sequence, setSequence] = useState<number[]>([]);
   const [activePad, setActivePad] = useState<number | null>(null);
-  const [inputStep, setInputStep] = useState(0);
   const [isPlayingSeq, setIsPlayingSeq] = useState(true);
 
+  const timers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  const inputLocked = useRef(true);
+  const stepRef = useRef(0);
+  const clearTimers = useCallback(() => {
+    timers.current.forEach(clearTimeout);
+    timers.current.clear();
+  }, []);
+  const schedule = useCallback((action: () => void, delay: number) => {
+    const id = setTimeout(() => { timers.current.delete(id); action(); }, delay);
+    timers.current.add(id);
+  }, []);
+
   const playSequence = useCallback((seq: number[]) => {
+    clearTimers();
+    inputLocked.current = true;
+    stepRef.current = 0;
     setIsPlayingSeq(true);
-    setInputStep(0);
     setGuideText("불빛과 소리 순서를 잘 기억해 보세요!");
 
     seq.forEach((padIdx, i) => {
-      setTimeout(() => {
+      schedule(() => {
         setActivePad(padIdx);
         playTone(padTones[padIdx], "triangle", 0.35, 0.4);
         buzz(30);
-        setTimeout(() => {
+        schedule(() => {
           setActivePad(null);
           if (i === seq.length - 1) {
-            setTimeout(() => {
+            schedule(() => {
+              inputLocked.current = false;
               setIsPlayingSeq(false);
               setGuideText("이제 같은 순서로 눌러보세요!");
             }, 300);
@@ -1179,7 +1050,7 @@ function MemoryMode({ level, onLevelComplete, onError, setGuideText }: { level: 
         }, 400);
       }, (i + 1) * 650);
     });
-  }, [padTones, setGuideText]);
+  }, [padTones, setGuideText, clearTimers, schedule]);
 
   useEffect(() => {
     const newSeq: number[] = [];
@@ -1188,31 +1059,35 @@ function MemoryMode({ level, onLevelComplete, onError, setGuideText }: { level: 
     }
     setSequence(newSeq);
     playSequence(newSeq);
-  }, [level, seqLength, playSequence]);
+    return clearTimers;
+  }, [level, seqLength, playSequence, clearTimers]);
 
   const handlePadTap = (idx: number) => {
-    if (isPlayingSeq) return;
+    if (inputLocked.current) return;
 
     setActivePad(idx);
     playTone(padTones[idx], "triangle", 0.25, 0.35);
     buzz(30);
-    setTimeout(() => setActivePad(null), 250);
+    schedule(() => setActivePad(null), 250);
 
-    if (idx === sequence[inputStep]) {
-      const nextStep = inputStep + 1;
+    if (idx === sequence[stepRef.current]) {
+      const nextStep = stepRef.current + 1;
+      stepRef.current = nextStep;
       if (nextStep >= sequence.length) {
         soundSuccess();
         buzz(50);
+        inputLocked.current = true;
+        clearTimers();
         onLevelComplete();
-      } else {
-        setInputStep(nextStep);
       }
     } else {
+      inputLocked.current = true;
+      setIsPlayingSeq(true);
       onError();
       soundError();
       buzz([80, 40, 80]);
       setGuideText("틀렸어요! 순서를 다시 보여드릴게요.");
-      setTimeout(() => {
+      schedule(() => {
         playSequence(sequence);
       }, 900);
     }
@@ -1375,23 +1250,19 @@ function ResultView({
     buzz([100, 50, 100, 50, 200]);
   }, []);
 
-  let grade = "우수";
   let gradeBadge = "⭐ 우수";
   let gradeColor = "#1D4ED8";
   let praise = "아주 훌륭하게 10단계를 해내셨습니다!";
 
   if (mistakes <= 3) {
-    grade = "최우수";
     gradeBadge = "🏆 최우수";
     gradeColor = "#047857";
     praise = "정확도와 집중력이 청년 못지않으십니다! 대단하세요!";
   } else if (mistakes <= 8) {
-    grade = "우수";
     gradeBadge = "⭐ 우수";
     gradeColor = "#1D4ED8";
     praise = "차분하고 침착하게 끝까지 멋지게 완주하셨습니다!";
   } else {
-    grade = "노력상";
     gradeBadge = "👏 노력상";
     gradeColor = "#D97706";
     praise = "끝까지 포기하지 않으신 어르신의 열정에 큰 박수를 보냅니다!";

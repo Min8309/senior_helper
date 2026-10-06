@@ -1,6 +1,6 @@
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import { AiConversationLog, CharacterMode } from "../types/memory";
-import { getCurrentUserId } from "./userService";
+import { getCurrentUserId, getAuthenticatedUserId } from "./userService";
 
 const LOCAL_STORAGE_KEY = "senior_helper_ai_conversations_v1";
 
@@ -40,7 +40,7 @@ export async function saveConversation(params: {
   answer: string;
 }): Promise<AiConversationLog> {
   const userId = params.userId || getCurrentUserId();
-  const id = `conv_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
 
   const record: AiConversationLog = {
@@ -60,9 +60,11 @@ export async function saveConversation(params: {
   }
 
   try {
+    const authenticatedId = await getAuthenticatedUserId();
+    if (!authenticatedId) return record;
     const { error } = await supabase.from("ai_conversations").insert({
       id: record.id,
-      user_id: record.user_id,
+      user_id: authenticatedId,
       character_mode: record.character_mode,
       question: record.question,
       answer: record.answer,
@@ -77,38 +79,4 @@ export async function saveConversation(params: {
   }
 
   return record;
-}
-
-/**
- * ── 2. AI 대화 기록 조회 ──────────────────────────────────────────────────
- */
-export async function getConversations(userId?: string, limit = 20): Promise<AiConversationLog[]> {
-  const targetUser = userId || getCurrentUserId();
-  const localList = getLocalConversations();
-
-  if (!isSupabaseConfigured || !supabase) {
-    return localList;
-  }
-
-  try {
-    const { data, error } = await supabase
-      .from("ai_conversations")
-      .select("*")
-      .eq("user_id", targetUser)
-      .order("created_at", { ascending: false })
-      .limit(limit);
-
-    if (error) {
-      console.warn("Supabase 대화 기록 조회 실패:", error.message);
-      return localList;
-    }
-
-    if (data && data.length > 0) {
-      return data as AiConversationLog[];
-    }
-  } catch (err) {
-    console.warn("대화 기록 조회 예외:", err);
-  }
-
-  return localList;
 }

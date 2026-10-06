@@ -101,7 +101,7 @@ c:\Senior Citizens Emotional Support App (2)\
 ├── src/
 │   ├── components/
 │   │   ├── AiAskCard.tsx          # AI 손자·손녀에게 물어보기 대화 컴포넌트
-│   │   ├── TodayMemoryCard.tsx    # 홈 화면 오늘의 기억 카드
+│   │   ├── GuideScreen.tsx        # 사진 촬영 및 분석 안내 화면
 │   │   ├── MemoryScreen.tsx       # 나의 기억 저장소 목록 & 상세 페이지
 │   │   ├── MemoryRecordModal.tsx  # 음성/글 기억 남기기 모달
 │   │   └── NameEditModal.tsx      # 사용자 이름 설정/수정 모달

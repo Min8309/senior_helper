@@ -86,3 +86,7 @@ npm run dev
 # 프로덕션 빌드
 npm run build
 ```
+
+## 개발 검증 및 클라우드 보안 설정
+
+`npm run typecheck`와 `npm test`로 타입·브라우저·접근 정책 검사를 실행합니다. Supabase 인증, 비공개 음성 저장, 기존 데이터 이전 및 사진 분석 서버 연결은 [개발 및 보안 설정](docs/development-and-security.md)을 참고하세요. 현재 대화는 미리 준비된 응답을 사용하며 실시간 날씨 정보는 연결되어 있지 않습니다.

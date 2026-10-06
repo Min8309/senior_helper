@@ -21,7 +21,7 @@ if (isSupabaseConfigured) {
         autoRefreshToken: true,
       },
     });
-    console.info("🌸 [Supabase] 연결 완료: 원격 클라우드 동기화 활성화");
+    console.info("🌸 [Supabase] 설정 확인: 인증 후 클라우드 동기화를 시도합니다");
   } catch (err) {
     console.warn("⚠️ [Supabase] 초기화 오류, 오프라인 로컬 저장소 모드로 작동합니다:", err);
   }
@@ -33,15 +33,10 @@ if (isSupabaseConfigured) {
 
 export const supabase = supabaseInstance;
 
-/**
- * Supabase Storage 버킷에서 음성 파일의 공개 URL을 얻거나 생성하는 헬퍼
- */
-export function getAudioStoragePublicUrl(audioPath: string): string | null {
-  if (!supabase || !audioPath) return null;
-  // 만약 이미 full url인 경우 그대로 반환
-  if (audioPath.startsWith("http://") || audioPath.startsWith("https://")) {
-    return audioPath;
-  }
-  const { data } = supabase.storage.from("memory-audio").getPublicUrl(audioPath);
-  return data?.publicUrl || null;
+/** 비공개 음성 파일의 단기 재생 URL. 기존 공개 URL은 재사용하지 않습니다. */
+export async function getAudioStorageUrl(audioPath: string): Promise<string | undefined> {
+  if (!supabase || !audioPath || /^https?:/i.test(audioPath)) return undefined;
+  const { data, error } = await supabase.storage.from("memory-audio").createSignedUrl(audioPath, 300);
+  if (error) throw error;
+  return data?.signedUrl;
 }

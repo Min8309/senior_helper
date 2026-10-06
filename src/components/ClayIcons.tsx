@@ -1,4 +1,3 @@
-import React from "react";
 
 // ─── 3D Claymorphic Brain Icon (오늘의 두뇌 운동) ──────────────────────────────
 // 부드러운 핑크빛 점토 재질의 둥근 뇌 형태 + 위에 얹힌 작은 노란 점토 별

@@ -25,13 +25,13 @@ export function getAiGrandchildAnswer(
   if (isAppliance) {
     if (characterMode === "boy") {
       return {
-        answer: "할머니, 제가 알려드릴게요! 리모컨이나 기기 사진을 찍어서 보여주시면 바로 켜는 방법을 설명해 드릴게요.",
+        answer: "할머니, 제가 알려드릴게요! 리모컨이나 기기 사진을 찍어주시면 분석 서비스가 연결되어 있을 때 사용법을 확인해 볼게요.",
         isApplianceQuestion: true,
         suggestedActionLabel: "📷 사진 찍어 보여주기",
       };
     } else {
       return {
-        answer: "할머니, 걱정 마세요! 기기나 리모컨 사진을 찰칵 찍어주시면 제가 버튼 누르는 법을 하나씩 알려드릴게요.",
+        answer: "할머니, 걱정 마세요! 기기나 리모컨 사진을 찍어주시면 분석 서비스가 연결되어 있을 때 사용법을 확인해 볼게요.",
         isApplianceQuestion: true,
         suggestedActionLabel: "📷 사진 찍어 보여주기",
       };
@@ -39,15 +39,15 @@ export function getAiGrandchildAnswer(
   }
 
   // 2. 날씨 관련
-  if (lower.includes("날씨") || lower.includes("비") || lower.includes("추워") || lower.includes("더워")) {
+  if (lower.includes("날씨") || lower.includes("비가") || lower.includes("비 와") || lower.includes("추워") || lower.includes("더워")) {
     if (characterMode === "boy") {
       return {
-        answer: "오늘 날씨는 아주 맑고 화창해요! 가벼운 외투 입으시고 따뜻한 햇살 받으며 산책 다녀오세요 😊",
+        answer: "실시간 날씨는 아직 확인할 수 없어요. 외출 전에 날씨 앱이나 기상 예보를 확인해 주세요.",
         isApplianceQuestion: false,
       };
     } else {
       return {
-        answer: "오늘 하늘이 정말 맑고 예뻐요! 바람이 살짝 불 수 있으니 따뜻하게 챙겨 입으시고 조심히 다녀오세요 💖",
+        answer: "실시간 날씨는 아직 확인할 수 없어요. 외출 전에 날씨 앱이나 기상 예보를 확인해 주세요.",
         isApplianceQuestion: false,
       };
     }

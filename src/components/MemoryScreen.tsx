@@ -1,6 +1,7 @@
+import { supabase, getAudioStorageUrl } from "../lib/supabase";
 import { useState, useEffect, useRef } from "react";
 import { MemoryItem, CharacterMode } from "../types/memory";
-import { getMemories, updateMemory, deleteMemory } from "../services/memoryService";
+import { getMemories, updateMemory, deleteMemory, getMemorySyncStatus } from "../services/memoryService";
 import { MemoryRecordModal } from "./MemoryRecordModal";
 import { BottomNavBar } from "./BottomNavBar";
 
@@ -20,12 +21,13 @@ export function MemoryScreen({
   characterMode = "boy",
 }: MemoryScreenProps) {
   const [memories, setMemories] = useState<MemoryItem[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [selectedMemory, setSelectedMemory] = useState<MemoryItem | null>(null);
   const [filterMode, setFilterMode] = useState<"recent" | "byDate">("recent");
   const [searchKeyword, setSearchKeyword] = useState("");
   const [visibleCount, setVisibleCount] = useState(6); // Requirement 11: 점진적 렌더링
 
+  const [hasPendingSync, setHasPendingSync] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
 
   // 음성 재생 상태 관리
@@ -41,19 +43,25 @@ export function MemoryScreen({
 
   // 기억 목록 불러오기 (Supabase 최신순 created_at DESC + 로컬 동기화)
   const loadMemories = async () => {
-    setIsLoading(true);
     try {
       const list = await getMemories();
       setMemories(list);
+      setHasPendingSync(getMemorySyncStatus() === "pending");
+      setErrorMessage("");
     } catch (err) {
       console.warn("기억 목록 불러오기 오류:", err);
-    } finally {
-      setIsLoading(false);
+      setErrorMessage("기록을 불러오지 못했어요. 다시 시도해 주세요.");
     }
   };
 
   useEffect(() => {
     loadMemories();
+    const refresh = () => { void loadMemories(); };
+    window.addEventListener("online", refresh);
+    return () => {
+      window.removeEventListener("online", refresh);
+      audioPlayerRef.current?.pause(); window.speechSynthesis?.cancel();
+    };
   }, []);
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -61,11 +69,12 @@ export function MemoryScreen({
   // ══════════════════════════════════════════════════════════════════════════
 
   // [방식 1] 실제 사용자가 녹음했던 원본 음성 오디오 재생 (HTML5 Audio / Data URL)
-  const playOriginalAudio = (item: MemoryItem) => {
-    if (!item.audio_data_url) return;
+  const playOriginalAudio = async (item: MemoryItem) => {
 
     try {
-      const audio = new Audio(item.audio_data_url);
+      const url = item.audio_path ? await getAudioStorageUrl(item.audio_path) : item.audio_data_url;
+      if (!url) throw new Error("음성 파일을 불러올 수 없습니다.");
+      const audio = new Audio(url);
       audioPlayerRef.current = audio;
       setPlayingId(item.id);
 
@@ -133,7 +142,7 @@ export function MemoryScreen({
     }
 
     // Requirement 10: 원본 음성 여부에 따른 명확한 분기 실행
-    if (item.audio_data_url) {
+    if (item.audio_data_url || item.audio_path) {
       // 방식 1: 원본 녹음 음성 재생
       playOriginalAudio(item);
     } else {
@@ -171,27 +180,32 @@ export function MemoryScreen({
     if (!selectedMemory || !editText.trim()) return;
     const updatedText = editText.trim();
 
-    await updateMemory(selectedMemory.id, {
-      display_text: updatedText,
-      summary: updatedText,
-      original_text: updatedText,
-    });
+    try {
+      const success = await updateMemory(selectedMemory.id, {
+        display_text: updatedText,
+        summary: updatedText,
+        original_text: updatedText,
+      });
 
-    setSelectedMemory({
-      ...selectedMemory,
-      display_text: updatedText,
-      summary: updatedText,
-      original_text: updatedText,
-    });
-    setIsEditing(false);
-    loadMemories();
+      if (!success) throw new Error("기록을 찾을 수 없습니다.");
+      setSelectedMemory({
+        ...selectedMemory,
+        display_text: updatedText,
+        summary: updatedText,
+        original_text: updatedText,
+      });
+      setIsEditing(false);
+      loadMemories();
+    } catch { setErrorMessage("수정 내용을 저장하지 못했어요. 다시 시도해 주세요."); }
   };
 
   // 기억 삭제 (Supabase 및 로컬 영구 삭제)
   const handleDelete = async () => {
     if (!selectedMemory) return;
-    await deleteMemory(selectedMemory.id);
-    handleCloseDetail();
+    try {
+      await deleteMemory(selectedMemory.id, selectedMemory.audio_path);
+      handleCloseDetail();
+    } catch { setErrorMessage("삭제하지 못했어요. 다시 시도해 주세요."); }
   };
 
   // 검색 및 정렬 필터링
@@ -228,6 +242,10 @@ export function MemoryScreen({
         overflow: "hidden",
       }}
     >
+      <p role="status" style={{ padding: "8px 16px", margin: 0, fontSize: 16, color: "#626A6E" }}>
+        {!supabase ? "기억은 이 기기에 저장돼요. 브라우저 데이터를 지우면 사라질 수 있어요." : hasPendingSync ? "기기에는 반영됐어요. 클라우드 동기화·삭제는 연결 후 다시 시도합니다." : "클라우드와 동기화됐어요."}
+      </p>
+      {errorMessage && <p role="alert" style={{ color: "#9A3412", padding: 12 }}>{errorMessage}</p>}
       {/* ── 1. 상단 헤더 (Requirement 1: < 홈으로 / 나의 기억 📖) ── */}
       <header
         style={{

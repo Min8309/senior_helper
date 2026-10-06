@@ -22,6 +22,7 @@ export interface MemoryItem {
   created_at: string; // ISO 8601 타임스탬프
   updated_at?: string;
   tags?: string[];
+  sync_pending?: boolean;
 }
 
 /**

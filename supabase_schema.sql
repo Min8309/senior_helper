@@ -1,3 +1,4 @@
+BEGIN;
 -- ==============================================================================
 -- 🌸 시니어 헬퍼 (Senior Helper) - Supabase 데이터베이스 스키마 및 스토리지 설정
 -- ==============================================================================
@@ -13,9 +14,6 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 
 -- RLS 활성화
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow public read for profiles" ON public.profiles FOR SELECT USING (true);
-CREATE POLICY "Allow public insert for profiles" ON public.profiles FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow public update for profiles" ON public.profiles FOR UPDATE USING (true);
 
 -- 2. 나의 기억 저장 테이블 (memories)
 CREATE TABLE IF NOT EXISTS public.memories (
@@ -40,10 +38,6 @@ CREATE INDEX IF NOT EXISTS idx_memories_user_created ON public.memories (user_id
 
 -- RLS 활성화
 ALTER TABLE public.memories ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow public read memories" ON public.memories FOR SELECT USING (true);
-CREATE POLICY "Allow public insert memories" ON public.memories FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow public update memories" ON public.memories FOR UPDATE USING (true);
-CREATE POLICY "Allow public delete memories" ON public.memories FOR DELETE USING (true);
 
 -- 3. 두뇌운동 기록 테이블 (brain_training_logs)
 CREATE TABLE IF NOT EXISTS public.brain_training_logs (
@@ -60,8 +54,6 @@ CREATE TABLE IF NOT EXISTS public.brain_training_logs (
 CREATE INDEX IF NOT EXISTS idx_brain_logs_user ON public.brain_training_logs (user_id, created_at DESC);
 
 ALTER TABLE public.brain_training_logs ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow public read brain logs" ON public.brain_training_logs FOR SELECT USING (true);
-CREATE POLICY "Allow public insert brain logs" ON public.brain_training_logs FOR INSERT WITH CHECK (true);
 
 -- 4. AI 손자/손녀 대화 기록 테이블 (ai_conversations)
 CREATE TABLE IF NOT EXISTS public.ai_conversations (
@@ -76,8 +68,6 @@ CREATE TABLE IF NOT EXISTS public.ai_conversations (
 CREATE INDEX IF NOT EXISTS idx_ai_conversations_user ON public.ai_conversations (user_id, created_at DESC);
 
 ALTER TABLE public.ai_conversations ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow public read ai conversations" ON public.ai_conversations FOR SELECT USING (true);
-CREATE POLICY "Allow public insert ai conversations" ON public.ai_conversations FOR INSERT WITH CHECK (true);
 
 -- 5. 생활 도움 기기 분석 기록 테이블 (appliance_help_logs)
 -- 주의: 개인정보 보호를 위해 사진 원본은 영구 저장하지 않고 최소 결과만 보관합니다.
@@ -95,23 +85,61 @@ CREATE TABLE IF NOT EXISTS public.appliance_help_logs (
 CREATE INDEX IF NOT EXISTS idx_appliance_help_user ON public.appliance_help_logs (user_id, created_at DESC);
 
 ALTER TABLE public.appliance_help_logs ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow public read appliance logs" ON public.appliance_help_logs FOR SELECT USING (true);
-CREATE POLICY "Allow public insert appliance logs" ON public.appliance_help_logs FOR INSERT WITH CHECK (true);
 
--- 6. 음성 파일 저장용 Supabase Storage 버킷 생성 안내
--- Supabase 대시보드 Storage 메뉴에서 아래 버킷을 Public으로 생성하거나 아래 SQL을 실행합니다:
+-- 6. 원본 음성은 비공개로 저장하고 단기 서명 URL로 재생합니다.
 INSERT INTO storage.buckets (id, name, public)
-VALUES ('memory-audio', 'memory-audio', true)
-ON CONFLICT (id) DO NOTHING;
+VALUES ('memory-audio', 'memory-audio', false)
+ON CONFLICT (id) DO UPDATE SET public = false;
+DROP POLICY IF EXISTS "Allow public read profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Allow public read for profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Allow public insert profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Allow public insert for profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Allow public update profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Allow public update for profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Allow public delete profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Allow public delete for profiles" ON public.profiles;
+DROP POLICY IF EXISTS "owner_access" ON public.profiles;
+CREATE POLICY "owner_access" ON public.profiles FOR ALL TO authenticated
+USING (id = (select auth.uid())) WITH CHECK (id = (select auth.uid()));
 
-CREATE POLICY "Allow public upload to memory-audio"
-ON storage.objects FOR INSERT
-WITH CHECK (bucket_id = 'memory-audio');
+DROP POLICY IF EXISTS "Allow public read memories" ON public.memories;
+DROP POLICY IF EXISTS "Allow public insert memories" ON public.memories;
+DROP POLICY IF EXISTS "Allow public update memories" ON public.memories;
+DROP POLICY IF EXISTS "Allow public delete memories" ON public.memories;
+DROP POLICY IF EXISTS "owner_access" ON public.memories;
+CREATE POLICY "owner_access" ON public.memories FOR ALL TO authenticated
+USING (user_id = (select auth.uid())::text) WITH CHECK (user_id = (select auth.uid())::text);
 
-CREATE POLICY "Allow public read from memory-audio"
-ON storage.objects FOR SELECT
-USING (bucket_id = 'memory-audio');
+DROP POLICY IF EXISTS "Allow public read brain logs" ON public.brain_training_logs;
+DROP POLICY IF EXISTS "Allow public insert brain logs" ON public.brain_training_logs;
+DROP POLICY IF EXISTS "Allow public update brain logs" ON public.brain_training_logs;
+DROP POLICY IF EXISTS "Allow public delete brain logs" ON public.brain_training_logs;
+DROP POLICY IF EXISTS "owner_access" ON public.brain_training_logs;
+CREATE POLICY "owner_access" ON public.brain_training_logs FOR ALL TO authenticated
+USING (user_id = (select auth.uid())::text) WITH CHECK (user_id = (select auth.uid())::text);
 
-CREATE POLICY "Allow public delete from memory-audio"
-ON storage.objects FOR DELETE
-USING (bucket_id = 'memory-audio');
+DROP POLICY IF EXISTS "Allow public read ai conversations" ON public.ai_conversations;
+DROP POLICY IF EXISTS "Allow public insert ai conversations" ON public.ai_conversations;
+DROP POLICY IF EXISTS "Allow public update ai conversations" ON public.ai_conversations;
+DROP POLICY IF EXISTS "Allow public delete ai conversations" ON public.ai_conversations;
+DROP POLICY IF EXISTS "owner_access" ON public.ai_conversations;
+CREATE POLICY "owner_access" ON public.ai_conversations FOR ALL TO authenticated
+USING (user_id = (select auth.uid())::text) WITH CHECK (user_id = (select auth.uid())::text);
+
+DROP POLICY IF EXISTS "Allow public read appliance logs" ON public.appliance_help_logs;
+DROP POLICY IF EXISTS "Allow public insert appliance logs" ON public.appliance_help_logs;
+DROP POLICY IF EXISTS "Allow public update appliance logs" ON public.appliance_help_logs;
+DROP POLICY IF EXISTS "Allow public delete appliance logs" ON public.appliance_help_logs;
+DROP POLICY IF EXISTS "owner_access" ON public.appliance_help_logs;
+CREATE POLICY "owner_access" ON public.appliance_help_logs FOR ALL TO authenticated
+USING (user_id = (select auth.uid())::text) WITH CHECK (user_id = (select auth.uid())::text);
+
+DROP POLICY IF EXISTS "Allow public upload to memory-audio" ON storage.objects;
+DROP POLICY IF EXISTS "Allow public read from memory-audio" ON storage.objects;
+DROP POLICY IF EXISTS "Allow public delete from memory-audio" ON storage.objects;
+DROP POLICY IF EXISTS "memory_audio_owner" ON storage.objects;
+CREATE POLICY "memory_audio_owner" ON storage.objects FOR ALL TO authenticated
+USING (bucket_id = 'memory-audio' AND (storage.foldername(name))[1] = (select auth.uid())::text)
+WITH CHECK (bucket_id = 'memory-audio' AND (storage.foldername(name))[1] = (select auth.uid())::text);
+
+COMMIT;
