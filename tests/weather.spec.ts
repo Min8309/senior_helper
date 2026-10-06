@@ -208,3 +208,25 @@ test("잘못된 API 수치 거절, 현재 자료로 날씨 답변, 기기 온도
   expect(result.weather.answer).toContain("67퍼센트")
   expect(result.appliance.isApplianceQuestion).toBe(true)
 })
+
+test("네 가지 홈 기능이 작은 휴대폰 화면 안에 들어가고 촬영 화면으로 이동", async ({ page }) => {
+  await page.route(endpoint, route => route.fulfill({ json: response() }))
+  for (const viewport of [{ width: 320, height: 568 }, { width: 360, height: 640 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(viewport)
+    await page.goto("/")
+    await expect(page.getByText("21°C", { exact: true })).toBeVisible()
+    const buttons = page.locator('.home-actions button')
+    await expect(buttons).toHaveCount(4)
+    const fits = await page.evaluate(() => {
+      const body = document.querySelector('.home-body')!
+      const targets = [...document.querySelectorAll('.home-actions button, nav[aria-label="하단 주 메뉴"]')]
+      return body.scrollHeight <= body.clientHeight + 1 && document.documentElement.scrollHeight <= innerHeight + 1 && targets.every(element => {
+        const rect = element.getBoundingClientRect()
+        return rect.top >= 0 && rect.bottom <= innerHeight && rect.left >= 0 && rect.right <= innerWidth
+      })
+    })
+    expect(fits, `${viewport.width}x${viewport.height}`).toBe(true)
+  }
+  await page.getByRole('button', { name: '기기 사진 찍기 화면으로 이동', exact: true }).click()
+  await expect(page.getByRole('button', { name: '기기 사진 찍기', exact: true })).toBeVisible()
+})

@@ -93,10 +93,10 @@ function GreetingScreen({
       <CozySunlitBackdrop />
 
       {/* ── Scrollable Body Area ── */}
-      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", paddingBottom: 16, gap: 16, position: "relative", zIndex: 1 }}>
+      <div className="home-body" style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", paddingBottom: 16, gap: 16, position: "relative", zIndex: 1 }}>
         
         {/* ── 1. HEADER (날짜 & 날씨·온도 & 안녕하세요 00님) ── */}
-        <header style={{ padding: "18px 20px 0", flexShrink: 0 }}>
+        <header className="home-header" style={{ padding: "18px 20px 0", flexShrink: 0 }}>
           <WeatherSummary />
 
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 4 }}>
@@ -135,7 +135,7 @@ function GreetingScreen({
         </header>
 
         {/* ── 2. 손자 / 손녀 선택 UI (Segmented Control) ── */}
-        <div style={{ padding: "0 20px", display: "flex", gap: 12, flexShrink: 0 }}>
+        <div className="home-modes" style={{ padding: "0 20px", display: "flex", gap: 12, flexShrink: 0 }}>
           <button
             onClick={() => handleSelectChild("boy")}
             aria-label="손자와 함께 선택"
@@ -188,7 +188,7 @@ function GreetingScreen({
         </div>
 
         {/* ── 3. AI 캐릭터 영상 (01.mp4 / 02.mp4) & 말풍선 (따스한 방 안 분위기) ── */}
-        <div style={{ padding: "0 20px", flexShrink: 0 }}>
+        <div className="home-character" style={{ padding: "0 20px", flexShrink: 0 }}>
           <div style={{
             background: "linear-gradient(180deg, rgba(255, 253, 248, 0.95) 0%, rgba(254, 245, 230, 0.95) 100%)",
             border: "2px solid #F0DAC3",
@@ -218,6 +218,7 @@ function GreetingScreen({
 
             {/* 캐릭터 영상 플레이 영역 */}
             <div
+              className="home-video"
               onClick={handleVideoTouch}
               title="터치하시면 영상 소리를 켜거나 다시 재생합니다"
               style={{
@@ -290,112 +291,19 @@ function GreetingScreen({
           </div>
         </div>
 
-        {/* ── 4. 메뉴 버튼 3종 (목적별 컬러 코딩 & 3D 클레이 아이콘) ── */}
-        <div style={{ padding: "0 20px", display: "flex", flexDirection: "column", gap: 12, flexShrink: 0 }}>
-          {/* 1) 오늘의 두뇌 운동 (포레스트 그린 #1B5E20 - 건강·활력) */}
-          <button
-            onClick={onGame}
-            aria-label="오늘의 두뇌 운동 시작하기"
-            style={{
-              width: "100%",
-              minHeight: 76,
-              borderRadius: 22,
-              background: "#1B5E20",
-              border: "none",
-              padding: "14px 20px",
-              display: "flex",
-              alignItems: "center",
-              gap: 16,
-              cursor: "pointer",
-              boxShadow: "0 6px 18px rgba(27,94,32,0.32)",
-              textAlign: "left",
-            }}
-          >
-            <ClayBrainIcon size={48} />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 21, fontWeight: 900, color: "#FFFFFF", lineHeight: 1.25 }}>
-                오늘의 두뇌 운동
-              </div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: "#E8F5E9", marginTop: 3 }}>
-                5분 · 기억력 + 손가락 운동
-              </div>
-            </div>
-            <span style={{ fontSize: 24, color: "#FFFFFF", fontWeight: 900 }}>▶</span>
-          </button>
-
-          {/* 2) 손자/손녀에게 물어보기 (선셋 앰버/오렌지 #D97706 - 대화·교감) */}
-          <button
-            onClick={() => setIsAskModalOpen(true)}
-            aria-label={`${childType === "boy" ? "손자" : "손녀"}에게 물어보기`}
-            style={{
-              width: "100%",
-              minHeight: 76,
-              borderRadius: 22,
-              background: "#D97706",
-              border: "none",
-              padding: "14px 20px",
-              display: "flex",
-              alignItems: "center",
-              gap: 16,
-              cursor: "pointer",
-              boxShadow: "0 6px 18px rgba(217,119,6,0.35)",
-              textAlign: "left",
-            }}
-          >
-            <ClayRetroMicIcon size={48} />
-            <div style={{ flex: 1 }}>
-              <div style={{
-                fontSize: 21,
-                fontWeight: 900,
-                color: "#FFFFFF",
-                lineHeight: 1.25,
-                textShadow: "0 1px 2px rgba(120,53,15,0.45)",
-              }}>
-                {childType === "boy" ? "손자에게 물어보기" : "손녀에게 물어보기"}
-              </div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: "#FEF3C7", marginTop: 3 }}>
-                궁금한 점을 편하게 말씀해 주세요
-              </div>
-            </div>
-            <span style={{ fontSize: 24, color: "#FFFFFF", fontWeight: 900, textShadow: "0 1px 2px rgba(120,53,15,0.45)" }}>▶</span>
-          </button>
-
-          {/* 3) 오늘의 기억 (소프트 인디고/코발트 #2563EB - 기억·안정) */}
-          <button
-            onClick={onMemory}
-            aria-label="오늘의 기억 화면으로 이동"
-            style={{
-              width: "100%",
-              minHeight: 76,
-              borderRadius: 22,
-              background: "#2563EB",
-              border: "none",
-              padding: "14px 20px",
-              display: "flex",
-              alignItems: "center",
-              gap: 16,
-              cursor: "pointer",
-              boxShadow: "0 6px 18px rgba(37,99,235,0.35)",
-              textAlign: "left",
-            }}
-          >
-            <ClayTulipPotIcon size={48} />
-            <div style={{ flex: 1 }}>
-              <div style={{
-                fontSize: 21,
-                fontWeight: 900,
-                color: "#FFFFFF",
-                lineHeight: 1.25,
-                textShadow: "0 1px 2px rgba(30,58,138,0.45)",
-              }}>
-                오늘의 기억
-              </div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: "#DBEAFE", marginTop: 3 }}>
-                말하거나 글로 오늘을 남겨보세요
-              </div>
-            </div>
-            <span style={{ fontSize: 24, color: "#FFFFFF", fontWeight: 900, textShadow: "0 1px 2px rgba(30,58,138,0.45)" }}>▶</span>
-          </button>
+        <div className="home-actions" aria-label="홈 기능">
+          {[
+            { title: "오늘의 두뇌 운동", description: "5분 · 기억력 + 손가락 운동", icon: <ClayBrainIcon size={32} />, color: "#1B5E20", label: "오늘의 두뇌 운동 시작하기", action: onGame },
+            { title: `${childType === "boy" ? "손자" : "손녀"}에게 물어보기`, description: "궁금한 점을 말씀해 주세요", icon: <ClayRetroMicIcon size={32} />, color: "#B85F00", label: `${childType === "boy" ? "손자" : "손녀"}에게 물어보기`, action: () => setIsAskModalOpen(true) },
+            { title: "오늘의 기억", description: "말하거나 글로 오늘을 남겨요", icon: <ClayTulipPotIcon size={32} />, color: "#2563EB", label: "오늘의 기억 화면으로 이동", action: onMemory },
+            { title: "기기 사진 찍기", description: "리모컨 · 세탁기 · 전자레인지", icon: <span aria-hidden="true">📷</span>, color: "#26734D", label: "기기 사진 찍기 화면으로 이동", action: onGuide },
+          ].map((item) => (
+            <button key={item.label} onClick={item.action} aria-label={item.label} style={{ background: item.color }}>
+              <span className="home-action-icon">{item.icon}</span>
+              <strong>{item.title}</strong>
+              <span className="home-action-description">{item.description}</span>
+            </button>
+          ))}
         </div>
 
       </div>
@@ -1522,7 +1430,7 @@ export default function App() {
   };
 
   return (
-    <div style={{
+    <div className="app-stage" style={{
       display: "flex", alignItems: "center", justifyContent: "center",
       width: "100%", minHeight: "100vh",
       backgroundImage: `url(${cozyRoomBg})`,
@@ -1550,7 +1458,7 @@ export default function App() {
         @keyframes bounce { 0%, 100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
       `}</style>
 
-      <div style={{
+      <div className="app-frame" style={{
         position: "relative",
         zIndex: 1,
         width: 390, height: 844,

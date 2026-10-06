@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { useWeather } from "../hooks/useWeather"
 import {
   isWeatherStale,
@@ -7,6 +8,7 @@ import {
 import { localDateLabel } from "../utils/date"
 
 export default function WeatherSummary() {
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const {
     location,
     weather,
@@ -44,7 +46,7 @@ export default function WeatherSummary() {
   }
 
   return (
-    <section aria-label="현재 날씨" style={{ marginBottom: 12 }}>
+    <section className="weather-summary" aria-label="현재 날씨" style={{ marginBottom: 12 }}>
       <div
         style={{
           display: "flex",
@@ -177,7 +179,9 @@ export default function WeatherSummary() {
           {error && <div>{error}</div>}
           {locationError && <div>{locationError}</div>}
         </div>
+        <button className="weather-settings-toggle" aria-expanded={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}>날씨 지역 · 새로고침</button>
         <div
+          className={`weather-controls ${settingsOpen ? "is-open" : ""}`}
           style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}
         >
           <select
