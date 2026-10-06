@@ -1,4 +1,4 @@
-import { localDateLabel } from "./utils/date";
+import WeatherSummary from "./components/WeatherSummary";
 import { useState, useEffect, useRef, useCallback } from "react";
 import boyVideo from "../img/boy.mp4";
 import girlVideo from "../img/girl.mp4";
@@ -17,15 +17,6 @@ function VolumeIcon({ color = "#1A1A1A", size = 28 }: { color?: string; size?: n
     <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true">
       <path d="M8 11H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h4l7 6V5L8 11Z" fill={color} />
       <path d="M21 10.5a8 8 0 0 1 0 11M24.5 7.5a13 13 0 0 1 0 17" stroke={color} strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function SpeakerIcon({ color = "#2E7D32" }: { color?: string }) {
-  return (
-    <svg width="26" height="26" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-      <path d="M7 10H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h3l5.5 4.5V5.5L7 10Z" fill={color} />
-      <path d="M17 9.5a7 7 0 0 1 0 9M20 6.5a12 12 0 0 1 0 15" stroke={color} strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -61,7 +52,6 @@ function GreetingScreen({
       setChildType(type);
     }
   };
-  const [ttsPlaying, setTtsPlaying] = useState(false);
   const [isVideoMuted, setIsVideoMuted] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -82,33 +72,6 @@ function GreetingScreen({
       localStorage.setItem("senior_user_name", newName);
     } catch {}
   };
-
-  // 손자 / 손녀 음성 낭독 (상단 스피커 아이콘 탭 시)
-  const handleSpeakGreeting = useCallback(() => {
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      if (ttsPlaying) {
-        window.speechSynthesis.cancel();
-        setTtsPlaying(false);
-        return;
-      }
-
-      const text = childType === "boy"
-        ? `안녕하세요, ${userName}님! 오늘 저랑 5분만 두뇌 운동 같이 해봐요. 오늘도 손자가 응원할게요!`
-        : `안녕하세요, ${userName}님! 오늘도 저랑 같이 5분만 두뇌 운동해요. 사랑해요!`;
-
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = "ko-KR";
-      utterance.rate = 0.86; // 어르신을 위한 차분하고 또렷한 속도
-      utterance.pitch = childType === "boy" ? 1.05 : 1.25;
-      utterance.onstart = () => setTtsPlaying(true);
-      utterance.onend = () => setTtsPlaying(false);
-      utterance.onerror = () => setTtsPlaying(false);
-      window.speechSynthesis.speak(utterance);
-    } else {
-      setTtsPlaying(p => !p);
-    }
-  }, [childType, ttsPlaying, userName]);
 
   // 비디오 터치 시 소리 켜기 및 다시 재생
   const handleVideoTouch = () => {
@@ -132,42 +95,9 @@ function GreetingScreen({
       {/* ── Scrollable Body Area ── */}
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", paddingBottom: 16, gap: 16, position: "relative", zIndex: 1 }}>
         
-        {/* ── 1. HEADER (날짜 & 날씨·온도 & 음성 스피커 & 안녕하세요 00님) ── */}
+        {/* ── 1. HEADER (날짜 & 날씨·온도 & 안녕하세요 00님) ── */}
         <header style={{ padding: "18px 20px 0", flexShrink: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-            {/* 날짜와 날씨 (오늘의 온도) */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 18, fontWeight: 800, color: "#4A5568" }}>
-                {localDateLabel()}
-              </span>
-              <span style={{ fontSize: 15, color: "#CBD5E1" }}>•</span>
-              <span style={{ fontSize: 17, fontWeight: 800, color: "#26734D", display: "inline-flex", alignItems: "center", gap: 5 }}>
-                <span>☀️</span>
-                <span>날씨 정보 미연결</span>
-              </span>
-            </div>
-
-            <button
-              onClick={handleSpeakGreeting}
-              aria-label="안내 음성 듣기"
-              style={{
-                width: 50,
-                height: 50,
-                borderRadius: 16,
-                background: ttsPlaying ? "#E7F4EC" : "#FFFFFF",
-                border: `2px solid ${ttsPlaying ? "#26734D" : "#D9DEDA"}`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-                boxShadow: "0 2px 8px rgba(30,50,40,0.06)",
-                transition: "all 0.15s ease",
-                flexShrink: 0,
-              }}
-            >
-              <SpeakerIcon color={ttsPlaying ? "#26734D" : "#252A2D"} />
-            </button>
-          </div>
+          <WeatherSummary />
 
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 4 }}>
             <h1
@@ -1610,28 +1540,6 @@ export default function App() {
         background: "radial-gradient(ellipse at 35% 20%, rgba(255, 248, 225, 0.45) 0%, rgba(245, 218, 175, 0.28) 45%, rgba(65, 38, 18, 0.45) 100%)",
         pointerEvents: "none",
       }} />
-
-      {/* 데스크톱 환경용 잔잔한 아늑한 거실 무드 라벨 */}
-      <div style={{
-        position: "absolute",
-        top: 14,
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        background: "rgba(255, 255, 255, 0.9)",
-        backdropFilter: "blur(10px)",
-        padding: "7px 18px",
-        borderRadius: 24,
-        boxShadow: "0 4px 16px rgba(60, 30, 10, 0.12)",
-        fontSize: 14,
-        fontWeight: 800,
-        color: "#78350F",
-        border: "1px solid rgba(255, 255, 255, 0.8)",
-        zIndex: 10,
-      }}>
-        <span>☀️</span>
-        <span>따스한 아침 햇살이 머무는 거실</span>
-      </div>
 
       <style>{`
         @keyframes wave-0 { from{height:20%} to{height:90%} }

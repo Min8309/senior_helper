@@ -123,7 +123,7 @@ export function AiAskCard({ childType, onOpenGuide }: AiAskCardProps) {
         gap: 14,
       }}
     >
-      <p style={{ fontSize: 16, color: "#626A6E" }}>미리 준비된 답변으로 대화해요. 실시간 AI·날씨 정보는 제공하지 않아요.</p>
+      <p style={{ fontSize: 16, color: "#626A6E" }}>일반 대화는 미리 준비된 답변이에요. 날씨는 홈에서 확인한 현재 자료로 알려드려요.</p>
       {/* 카드 상단 헤더 */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>

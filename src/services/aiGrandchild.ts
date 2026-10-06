@@ -1,3 +1,4 @@
+import { weatherAnswer } from "./weatherService";
 // AI 손자·손녀 응답 생성 및 의도 분석 서비스
 export interface AiAnswerResult {
   answer: string;
@@ -19,6 +20,10 @@ export function getAiGrandchildAnswer(
   const trimmed = question.trim();
   const lower = trimmed.toLowerCase();
 
+  const weatherQuestion = ["날씨", "기온", "습도", "체감온도", "비가", "비 와", "추워", "더워"].some(word => lower.includes(word)) ||
+    (lower.includes("온도") && !["에어컨", "보일러", "리모컨", "냉장고", "전자레인지", "밥솥", "기기"].some(word => lower.includes(word)));
+  if (weatherQuestion) return { answer: weatherAnswer(), isApplianceQuestion: false };
+
   // 1. 전자기기/가전제품 관련 질문 감지
   const isAppliance = APPLIANCE_KEYWORDS.some((kw) => lower.includes(kw));
 
@@ -34,21 +39,6 @@ export function getAiGrandchildAnswer(
         answer: "할머니, 걱정 마세요! 기기나 리모컨 사진을 찍어주시면 분석 서비스가 연결되어 있을 때 사용법을 확인해 볼게요.",
         isApplianceQuestion: true,
         suggestedActionLabel: "📷 사진 찍어 보여주기",
-      };
-    }
-  }
-
-  // 2. 날씨 관련
-  if (lower.includes("날씨") || lower.includes("비가") || lower.includes("비 와") || lower.includes("추워") || lower.includes("더워")) {
-    if (characterMode === "boy") {
-      return {
-        answer: "실시간 날씨는 아직 확인할 수 없어요. 외출 전에 날씨 앱이나 기상 예보를 확인해 주세요.",
-        isApplianceQuestion: false,
-      };
-    } else {
-      return {
-        answer: "실시간 날씨는 아직 확인할 수 없어요. 외출 전에 날씨 앱이나 기상 예보를 확인해 주세요.",
-        isApplianceQuestion: false,
       };
     }
   }

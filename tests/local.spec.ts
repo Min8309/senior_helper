@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test"
 
 test.beforeEach(async ({ page }) => {
+  await page.route("https://api.open-meteo.com/**", (route) =>
+    route.fulfill({ status: 503, body: "Unavailable" }),
+  )
   await page.goto("/")
 })
 
@@ -65,7 +68,9 @@ test("한국 새벽의 날짜를 현지 날짜로 저장", async ({ page }) => {
   await page.reload()
   await expect(page.getByText("10월 6일 화요일", { exact: true })).toBeVisible()
   await expect(
-    page.getByText("날씨 정보 미연결", { exact: true }),
+    page.getByText("날씨를 가져오지 못했어요. 잠시 뒤 새로고침해 주세요.", {
+      exact: true,
+    }),
   ).toBeVisible()
 })
 

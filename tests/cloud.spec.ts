@@ -106,6 +106,9 @@ test("동기화 재시도·동일 ID·오프라인 보존·음성 삭제 재시�
     }
     throw new Error(`Unexpected request: ${request.method()} ${url.pathname}`)
   })
+  await page.route("https://api.open-meteo.com/**", (route) =>
+    route.fulfill({ status: 503, body: "Unavailable" }),
+  )
   await page.goto("/")
   const saved = await page.evaluate(async () => {
     const service = await import("/src/services/memoryService.ts")

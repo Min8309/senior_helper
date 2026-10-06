@@ -13,7 +13,7 @@ export default defineConfig({
   projects: [
     {
       name: "local",
-      testMatch: "local.spec.ts",
+      testMatch: ["local.spec.ts", "weather.spec.ts"],
       use: { baseURL: "http://127.0.0.1:8445" },
     },
     {
