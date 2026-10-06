@@ -341,3 +341,51 @@ test("저장 공간 부족 시 작성 내용을 유지하고 실패를 표시", 
     page.getByRole("button", { name: "기억에 저장", exact: true }),
   ).toBeEnabled()
 })
+
+test("손자·손녀 영상 자동 재생과 터치 소리 전환", async ({ page }) => {
+  const video = page.locator("video")
+  const assertPlaying = async (mode: "boy" | "girl") => {
+    await expect(video).toHaveAttribute("src", new RegExp(`${mode}\\.mp4`))
+    await expect
+      .poll(() =>
+        video.evaluate((element) => ({
+          width: element.videoWidth,
+          height: element.videoHeight,
+          paused: element.paused,
+          muted: element.muted,
+          advanced: element.currentTime > 0,
+        })),
+      )
+      .toEqual({
+        width: 1280,
+        height: 720,
+        paused: false,
+        muted: true,
+        advanced: true,
+      })
+  }
+  await assertPlaying("boy")
+  await video.evaluate((element) => {
+    ;(window as any).playingVideo = element
+  })
+  await video.click()
+  await expect
+    .poll(() =>
+      video.evaluate((element) => ({
+        same: (window as any).playingVideo === element,
+        muted: element.muted,
+        paused: element.paused,
+      })),
+    )
+    .toEqual({ same: true, muted: false, paused: false })
+  await video.click()
+  await expect.poll(() => video.evaluate((element) => element.muted)).toBe(true)
+  await page
+    .getByRole("button", { name: "손녀와 함께 선택", exact: true })
+    .click()
+  await assertPlaying("girl")
+  await page
+    .getByRole("button", { name: "손자와 함께 선택", exact: true })
+    .click()
+  await assertPlaying("boy")
+})

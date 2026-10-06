@@ -1,7 +1,7 @@
 import { localDateLabel } from "./utils/date";
 import { useState, useEffect, useRef, useCallback } from "react";
-import boyVideo from "../img/01.mp4";
-import girlVideo from "../img/02.mp4";
+import boyVideo from "../img/boy.mp4";
+import girlVideo from "../img/girl.mp4";
 import { AiAskCard } from "./components/AiAskCard";
 import { MemoryScreen } from "./components/MemoryScreen";
 import { GuideScreen } from "./components/GuideScreen";
@@ -56,11 +56,11 @@ function GreetingScreen({
   setChildType?: (t: "boy" | "girl") => void;
 }) {
   const handleSelectChild = (type: "boy" | "girl") => {
+    setIsVideoMuted(true);
     if (setChildType) {
       setChildType(type);
     }
   };
-  const [playKey, setPlayKey] = useState(0);
   const [ttsPlaying, setTtsPlaying] = useState(false);
   const [isVideoMuted, setIsVideoMuted] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -94,7 +94,7 @@ function GreetingScreen({
 
       const text = childType === "boy"
         ? `안녕하세요, ${userName}님! 오늘 저랑 5분만 두뇌 운동 같이 해봐요. 오늘도 손자가 응원할게요!`
-        : `안녕하세요, ${userName}님! 오늘 날씨가 참 좋아요. 저랑 같이 5분만 두뇌 운동해요. 사랑해요!`;
+        : `안녕하세요, ${userName}님! 오늘도 저랑 같이 5분만 두뇌 운동해요. 사랑해요!`;
 
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
@@ -112,15 +112,16 @@ function GreetingScreen({
 
   // 비디오 터치 시 소리 켜기 및 다시 재생
   const handleVideoTouch = () => {
-    setIsVideoMuted(prev => {
-      const next = !prev;
-      if (videoRef.current) {
-        videoRef.current.muted = next;
-        videoRef.current.play().catch(() => {});
-      }
-      return next;
+    const video = videoRef.current;
+    if (!video) return;
+    const nextMuted = !video.muted;
+    video.muted = nextMuted;
+    setIsVideoMuted(nextMuted);
+    // 같은 요소를 유지해 사용자의 터치 안에서 소리를 켜고 재생합니다.
+    video.play().catch(() => {
+      video.muted = true;
+      setIsVideoMuted(true);
     });
-    setPlayKey(prev => prev + 1);
   };
 
   return (
@@ -304,9 +305,11 @@ function GreetingScreen({
             >
               <video
                 ref={videoRef}
-                key={`${childType}-${playKey}`}
+                key={childType}
                 src={childType === "boy" ? boyVideo : girlVideo}
                 autoPlay
+                preload="auto"
+                aria-label={childType === "boy" ? "손자 모드 영상" : "손녀 모드 영상"}
                 playsInline
                 muted={isVideoMuted}
                 loop
