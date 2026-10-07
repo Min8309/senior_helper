@@ -31,6 +31,7 @@ test("모바일 화면에 기온·체감온도·습도 표시, 날짜 줄바꿈 
     return route.fulfill({ json: response() })
   })
   await page.goto("/")
+  await page.getByRole("button", { name: "날씨 상세 정보", exact: true }).click()
   const panel = page.getByRole("region", { name: "현재 날씨" })
   await expect(panel.getByText("서울 기준", { exact: true })).toBeVisible()
   await expect(panel.getByText("21°C", { exact: true })).toBeVisible()
@@ -57,11 +58,13 @@ test("지역 변경은 좌표를 변경하고 재방문에도 유지", async ({ 
     })
   })
   await page.goto("/")
+  await page.getByRole("button", { name: "날씨 상세 정보", exact: true }).click()
   await expect(page.getByText("21°C", { exact: true })).toBeVisible()
   await page.getByLabel("날씨 지역").selectOption("busan")
   await expect(page.getByText("부산 기준", { exact: true })).toBeVisible()
   await expect(page.getByText("25°C", { exact: true })).toBeVisible()
   await page.reload()
+  await page.getByRole("button", { name: "날씨 상세 정보", exact: true }).click()
   await expect(page.getByLabel("날씨 지역")).toHaveValue("busan")
   await expect(page.getByText("25°C", { exact: true })).toBeVisible()
   expect(coordinates).toContain("35.18")
@@ -82,6 +85,7 @@ test("내 위치 권한 거절 시 안내 후 직접 지역 선택 가능", asyn
   )
   await page.route(endpoint, (route) => route.fulfill({ json: response() }))
   await page.goto("/")
+  await page.getByRole("button", { name: "날씨 상세 정보", exact: true }).click()
   await page.getByRole("button", { name: "내 위치 날씨", exact: true }).click()
   await expect(page.getByRole("status")).toContainText(
     "지역을 직접 선택해 주세요",
@@ -120,6 +124,7 @@ test("내 위치 좌표로 요청하며 이전 지역 응답이 새 위치를 �
     }
   })
   await page.goto("/")
+  await page.getByRole("button", { name: "날씨 상세 정보", exact: true }).click()
   await page.getByRole("button", { name: "내 위치 날씨", exact: true }).click()
   await expect(page.getByText("내 위치 기준", { exact: true })).toBeVisible()
   await expect(page.getByText("26°C", { exact: true })).toBeVisible()
@@ -140,6 +145,7 @@ test("네트워크 실패 시 마지막 자료 보존·오래된 자료 구분·
       : route.fulfill({ json: initial }),
   )
   await page.goto("/")
+  await page.getByRole("button", { name: "날씨 상세 정보", exact: true }).click()
   await expect(page.getByText("21°C", { exact: true })).toBeVisible()
   fail = true
   await page.getByRole("button", { name: "날씨 새로고침", exact: true }).click()
@@ -183,6 +189,7 @@ test("잘못된 API 수치 거절, 현재 자료로 날씨 답변, 기기 온도
     }),
   )
   await page.goto("/")
+  await page.getByRole("button", { name: "날씨 상세 정보", exact: true }).click()
   await expect(page.getByRole("status")).toContainText(
     "날씨를 가져오지 못했어요",
   )
@@ -214,7 +221,7 @@ test("네 가지 홈 기능이 작은 휴대폰 화면 안에 들어가고 촬�
   for (const viewport of [{ width: 320, height: 568 }, { width: 360, height: 640 }, { width: 390, height: 844 }]) {
     await page.setViewportSize(viewport)
     await page.goto("/")
-    await expect(page.getByText("21°C", { exact: true })).toBeVisible()
+    await expect(page.getByRole("button", { name: "날씨 상세 정보", exact: true })).toContainText("21°C")
     const buttons = page.locator('.home-actions button')
     await expect(buttons).toHaveCount(4)
     const fits = await page.evaluate(() => {
@@ -229,4 +236,26 @@ test("네 가지 홈 기능이 작은 휴대폰 화면 안에 들어가고 촬�
   }
   await page.getByRole('button', { name: '기기 사진 찍기 화면으로 이동', exact: true }).click()
   await expect(page.getByRole('button', { name: '기기 사진 찍기', exact: true })).toBeVisible()
+})
+
+test("날짜 옆 날씨를 누르면 상세 정보가 펼쳐지고 홈 배치는 유지", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 })
+  await page.route(endpoint, route => route.fulfill({ json: response() }))
+  await page.goto("/")
+  const toggle = page.getByRole("button", { name: "날씨 상세 정보", exact: true })
+  await expect(toggle).toContainText("21°C")
+  await expect(toggle).toContainText("흐림")
+  await expect(toggle).toHaveAttribute("aria-expanded", "false")
+  await expect(page.getByLabel("날씨 지역")).toBeHidden()
+  const before = await page.locator('.home-actions').boundingBox()
+  await toggle.click()
+  await expect(page.getByLabel("날씨 지역")).toBeVisible()
+  await expect(page.getByText("67%", { exact: true })).toBeVisible()
+  expect(await page.locator('.home-actions').boundingBox()).toEqual(before)
+  await page.keyboard.press('Escape')
+  await expect(toggle).toBeFocused()
+  await expect(page.getByLabel("날씨 지역")).toBeHidden()
+  await toggle.click()
+  await page.getByRole('button', { name: '홈 화면', exact: true }).click()
+  await expect(toggle).toHaveAttribute("aria-expanded", "false")
 })

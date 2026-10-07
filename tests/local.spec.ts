@@ -67,6 +67,7 @@ test("한국 새벽의 날짜를 현지 날짜로 저장", async ({ page }) => {
   ).toBe("2026-10-06")
   await page.reload()
   await expect(page.getByText("10월 6일 화요일", { exact: true })).toBeVisible()
+  await page.getByRole("button", { name: "날씨 상세 정보", exact: true }).click()
   await expect(
     page.getByText("날씨를 가져오지 못했어요. 잠시 뒤 새로고침해 주세요.", {
       exact: true,

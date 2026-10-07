@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useRef, useEffect, useId } from "react"
 import { useWeather } from "../hooks/useWeather"
 import {
   isWeatherStale,
@@ -8,7 +8,27 @@ import {
 import { localDateLabel } from "../utils/date"
 
 export default function WeatherSummary() {
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const sectionRef = useRef<HTMLElement>(null)
+  const detailsId = useId()
+  useEffect(() => {
+    if (!detailsOpen) return
+    const dismiss = (event: PointerEvent) => {
+      if (!sectionRef.current?.contains(event.target as Node)) setDetailsOpen(false)
+    }
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setDetailsOpen(false)
+        sectionRef.current?.querySelector<HTMLButtonElement>(".weather-toggle")?.focus()
+      }
+    }
+    document.addEventListener("pointerdown", dismiss)
+    document.addEventListener("keydown", escape)
+    return () => {
+      document.removeEventListener("pointerdown", dismiss)
+      document.removeEventListener("keydown", escape)
+    }
+  }, [detailsOpen])
   const {
     location,
     weather,
@@ -46,7 +66,7 @@ export default function WeatherSummary() {
   }
 
   return (
-    <section className="weather-summary" aria-label="현재 날씨" style={{ marginBottom: 12 }}>
+    <section ref={sectionRef} className="weather-summary" aria-label="현재 날씨" style={{ marginBottom: 12 }}>
       <div
         style={{
           display: "flex",
@@ -65,14 +85,22 @@ export default function WeatherSummary() {
         >
           {localDateLabel(new Date(now))}
         </span>
+        <button type="button" className="weather-toggle" aria-label="날씨 상세 정보" aria-expanded={detailsOpen} aria-controls={detailsId} onClick={() => setDetailsOpen(!detailsOpen)}>
+          <span aria-hidden="true">{description?.icon || "🌡️"}</span>
+          {weather ? `${Math.round(weather.temperature)}°C` : "—"} {weather && (stale || error) ? "이전 자료" : description?.label || (loading ? "확인 중" : "연결 안 됨")}
+          <span aria-hidden="true">{detailsOpen ? "▴" : "▾"}</span>
+        </button>
       </div>
       <div
+        id={detailsId}
+        className="weather-dropdown"
+        hidden={!detailsOpen}
         style={{
           marginTop: 10,
           padding: "14px 12px",
           borderRadius: 18,
           border: "1px solid #D8E7DC",
-          background: "rgba(255,255,255,0.93)",
+          background: "#FFFFFF",
         }}
       >
         <div
@@ -179,9 +207,8 @@ export default function WeatherSummary() {
           {error && <div>{error}</div>}
           {locationError && <div>{locationError}</div>}
         </div>
-        <button className="weather-settings-toggle" aria-expanded={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}>날씨 지역 · 새로고침</button>
         <div
-          className={`weather-controls ${settingsOpen ? "is-open" : ""}`}
+          className="weather-controls"
           style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}
         >
           <select
