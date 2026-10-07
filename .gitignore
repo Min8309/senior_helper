@@ -22,3 +22,7 @@ logs/
 # Automated browser test artifacts
 /test-results/
 /playwright-report/
+
+# Deployment configuration examples are safe to commit; credentials are not.
+!.env.example
+.vercel/

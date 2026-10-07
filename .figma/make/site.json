@@ -1,10 +1,12 @@
 {
-  "description": "Provides seniors with a warm daily greeting, emotional support, and easy voice interactions through a high-contrast, accessible interface.",
+  "description": "손자·손녀와 함께하는 두뇌 운동, 오늘의 기억, 생활 도움 앱",
   "robots": {
     "index": false
   },
   "accessibility": {
     "addBypassLinks": false,
     "ignoreReducedMotion": false
-  }
+  },
+  "title": "시니어 뇌건강 헬퍼",
+  "language": "ko"
 }

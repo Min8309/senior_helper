@@ -148,3 +148,5 @@
 # Small character videos must be available to deployments without Git LFS checkout.
 img/boy.mp4 -filter -diff -merge -text
 img/girl.mp4 -filter -diff -merge -text
+# Required background must also work on hosts without Git LFS checkout.
+src/assets/cozy_room_bg.jpg -filter -diff -merge -text
