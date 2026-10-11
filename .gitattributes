@@ -150,3 +150,5 @@ img/boy.mp4 -filter -diff -merge -text
 img/girl.mp4 -filter -diff -merge -text
 # Required background must also work on hosts without Git LFS checkout.
 src/assets/cozy_room_bg.jpg -filter -diff -merge -text
+# Web presentation downloads must be actual files in Vercel builds.
+public/presentation/senior-helper.pptx -filter -diff -merge -text

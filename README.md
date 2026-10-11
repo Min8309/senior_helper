@@ -96,3 +96,7 @@ npm run build
 ## Vercel 배포
 
 [Vercel 배포 안내](docs/deployment.md)에 GitHub 연결, 환경변수, Supabase 및 사진 분석 서버 설정을 정리했습니다. `npm run build:deploy`로 배포 전 검증과 프로덕션 빌드를 실행합니다.
+
+## 프로젝트 발표 자료
+
+11장으로 구성한 [웹 발표 자료](https://senior-helper-seven.vercel.app/presentation/index.html)와 [PPT](public/presentation/senior-helper.pptx)를 제공합니다. 핵심 기능, 실제 모바일 화면, 기술 구성, 운영 연결 항목과 향후 계획을 정리했습니다. 웹 자료는 방향키·전체 화면·인쇄를 지원하며, 화면 속 날씨 값은 재현용 샘플입니다.
