@@ -1,6 +1,8 @@
 # 🌸 시니어 헬퍼 (Senior Helper)
 
 https://senior-helper-seven.vercel.app/
+
+https://youtube.com/shorts/F8F46lj6yV8?feature=share
 > **AI 기반 시니어 정서·생활 케어 및 두뇌 인지 훈련 디지털 동반자 플랫폼**
 
 [![React](https://img.shields.io/badge/React-19-blue.svg)](https://react.dev/)
@@ -8,7 +10,7 @@ https://senior-helper-seven.vercel.app/
 [![Vite](https://img.shields.io/badge/Vite-8-purple.svg)](https://vitejs.dev/)
 [![TailwindCSS](https://img.shields.io/badge/TailwindCSS-v4-38bdf8.svg)](https://tailwindcss.com/)
 
-https://youtube.com/shorts/F8F46lj6yV8?feature=share
+
 ---
 
 ## 📌 1. 프로젝트 소개 (About Project)
