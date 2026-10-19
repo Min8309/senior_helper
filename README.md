@@ -102,4 +102,14 @@ npm run build
 
 ## 프로젝트 발표 자료
 
-11장으로 구성한 [웹 발표 자료](https://senior-helper-seven.vercel.app/presentation/index.html)와 [PPT](public/presentation/senior-helper.pptx)를 제공합니다. 핵심 기능, 실제 모바일 화면, 기술 구성, 운영 연결 항목과 향후 계획을 정리했습니다. 웹 자료는 방향키·전체 화면·인쇄를 지원하며, 화면 속 날씨 값은 재현용 샘플입니다.
+26장으로 구성한 프로젝트 발표 자료입니다. 기획 의도·목적·타겟·목표부터 핵심 기능, 모바일 화면, 기술 구조, **실제 핵심 코드 9건의 분석**, 검증 결과와 향후 계획까지 정리했습니다. 대표 색상은 시니어 헬퍼의 따뜻한 컨셉에 맞춘 포레스트 그린·웜 아이보리·골드입니다.
+
+- 📄 **[PDF 발표 자료 보기](public/presentation/senior-helper.pdf)**
+- 📊 [편집 가능한 PPT 다운로드](public/presentation/senior-helper.pptx)
+- 🖼️ [전체 슬라이드 미리보기](public/presentation/preview.jpg)
+- 🌐 [웹 발표 자료](https://senior-helper-seven.vercel.app/presentation/index.html) — 슬라이드 선택·방향키 이동·전체 화면 지원
+- 🎬 [프로젝트 소개 숏폼](https://youtube.com/shorts/F8F46lj6yV8?feature=share) — PPT·PDF에도 클릭 링크와 QR 코드 포함
+
+코드 분석은 로컬 우선 저장, 동기화 순서 보장, 음성 인식, 질문 의도 분기, 사진 분석 응답 검증, 날씨 요청 제어, 사용자 인증, 소유자 접근 정책, 선 긋기 완료 조건을 다룹니다. 각 코드의 구현 내용·사용자 가치·설계 판단과 GitHub 원본 링크를 제공합니다.
+
+일반 대화는 준비된 응답이며, Supabase와 사진 분석은 별도 운영 연결이 필요합니다. 사용자 평가 지표는 향후 측정 목표이고, 화면 속 날씨 값은 재현용 샘플입니다. [자료 구성과 검증 범위](public/presentation/README.md)도 함께 확인할 수 있습니다.
