@@ -3,6 +3,10 @@
 https://senior-helper-seven.vercel.app/
 
 https://youtube.com/shorts/F8F46lj6yV8?feature=share
+
+[senior-helper.pdf](https://github.com/user-attachments/files/33647915/senior-helper.pdf)
+
+
 > **AI 기반 시니어 정서·생활 케어 및 두뇌 인지 훈련 디지털 동반자 플랫폼**
 
 [![React](https://img.shields.io/badge/React-19-blue.svg)](https://react.dev/)
