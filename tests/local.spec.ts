@@ -395,3 +395,27 @@ test("손자·손녀 영상 자동 재생과 터치 소리 전환", async ({ pag
     .click()
   await assertPlaying("boy")
 })
+
+test("영상 다운로드가 지연되어도 캐릭터 미리보기와 홈 기능을 사용", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  // Keep media requests pending to reproduce a slow mobile video download.
+  const pending: import("@playwright/test").Route[] = []
+  await page.route("**/*.mp4", (route) => { pending.push(route) })
+  try {
+    await page.goto("/", { waitUntil: "domcontentloaded" })
+    const video = page.locator("video")
+    await expect(page.locator(".home-actions button")).toHaveCount(4)
+    await expect.poll(() => video.evaluate(async (element) => {
+      const poster = new Image()
+      poster.src = element.poster
+      await poster.decode()
+      return { preview: poster.naturalWidth > 0, mediaReady: element.readyState }
+    })).toEqual({ preview: true, mediaReady: 0 })
+    await page.getByRole("button", { name: "손녀와 함께 선택", exact: true }).click()
+    await expect(video).toHaveAttribute("poster", /girl-poster/)
+    await page.getByRole("button", { name: "두뇌 운동 화면으로 이동", exact: true }).click()
+    await expect(page.getByRole("button", { name: "1. 숫자 순서대로 누르기", exact: true })).toBeVisible()
+  } finally {
+    await Promise.all(pending.map((route) => route.abort().catch(() => {})))
+  }
+})

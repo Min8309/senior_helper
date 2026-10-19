@@ -2,6 +2,8 @@ import WeatherSummary from "./components/WeatherSummary";
 import { useState, useEffect, useRef, useCallback } from "react";
 import boyVideo from "../img/boy.mp4";
 import girlVideo from "../img/girl.mp4";
+import boyPoster from "../img/boy-poster.jpg";
+import girlPoster from "../img/girl-poster.jpg";
 import { AiAskCard } from "./components/AiAskCard";
 import { MemoryScreen } from "./components/MemoryScreen";
 import { GuideScreen } from "./components/GuideScreen";
@@ -238,6 +240,7 @@ function GreetingScreen({
                 ref={videoRef}
                 key={childType}
                 src={childType === "boy" ? boyVideo : girlVideo}
+                poster={childType === "boy" ? boyPoster : girlPoster}
                 autoPlay
                 preload="auto"
                 aria-label={childType === "boy" ? "손자 모드 영상" : "손녀 모드 영상"}
@@ -1439,7 +1442,7 @@ export default function App() {
       backgroundColor: "#F3EDE2",
       position: "relative",
       padding: "24px 16px",
-      fontFamily: "'Noto Sans KR', 'Nunito', sans-serif",
+      fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif",
     }}>
       {/* ── 아늑한 거실 채광 & 따뜻한 앰비언트 햇살 오버레이 ── */}
       <div style={{
