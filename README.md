@@ -8,6 +8,7 @@ https://senior-helper-seven.vercel.app/
 [![Vite](https://img.shields.io/badge/Vite-8-purple.svg)](https://vitejs.dev/)
 [![TailwindCSS](https://img.shields.io/badge/TailwindCSS-v4-38bdf8.svg)](https://tailwindcss.com/)
 
+https://youtube.com/shorts/F8F46lj6yV8?feature=share
 ---
 
 ## 📌 1. 프로젝트 소개 (About Project)
